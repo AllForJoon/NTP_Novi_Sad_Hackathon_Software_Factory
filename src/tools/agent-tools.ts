@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Tool } from '@mozaik-ai/core';
 import type { EngineeringTicket } from '../schemas.js';
-import { jsonSchema } from '../schemas.js';
+import { inferenceJsonSchema } from '../runtime/inference-schema.js';
 import { listFiles, readBounded, writeOwned } from './workspace.js';
 import { redact, runNode } from './commands.js';
 import { resolve } from 'node:path';
@@ -11,7 +11,7 @@ export function workerTools(options: {
   active: () => boolean; record: (action: string, detail: unknown) => void;
 }): Tool[] {
   const make = (name: string, description: string, schema: z.ZodType, fn: (data: any) => unknown | Promise<unknown>): Tool => ({
-    type: 'function', name, description, strict: true, parameters: jsonSchema(schema),
+    type: 'function', name, description, strict: true, parameters: inferenceJsonSchema(schema),
     async invoke(input: unknown) {
       if (!options.active()) return { error: 'Turn is no longer active' };
       try {

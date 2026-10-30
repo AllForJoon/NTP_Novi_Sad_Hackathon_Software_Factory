@@ -35,11 +35,13 @@ export class BoundedRunner implements InferenceRunner {
     } catch (error) {
       // v4 runLoop is fire-and-forget and has no public error event. Convert provider
       // rejection into a typed terminal answer, handled separately from product bugs.
-      return fault('provider', redact(error instanceof Error ? error.message : String(error)));
+      const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined;
+      const statusCode = typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599 ? status : null;
+      return fault('provider', redact(error instanceof Error ? error.message : String(error)), { statusCode, retryable: statusCode !== 400 });
     }
   }
   async *stream(_input: InferenceInput): AsyncGenerator<SemanticEvent> { throw new Error('Streaming is disabled in the factory'); }
 }
-function fault(category: string, message: string): InferenceOutput {
-  return { items: [ModelMessageItem.rehydrate({ text: JSON.stringify({ __factoryFault: { category, message } }) })], tokenUsage: undefined, rowResponse: null };
+function fault(category: string, message: string, metadata: { statusCode?: number | null; retryable?: boolean } = {}): InferenceOutput {
+  return { items: [ModelMessageItem.rehydrate({ text: JSON.stringify({ __factoryFault: { category, message, ...metadata } }) })], tokenUsage: undefined, rowResponse: null };
 }

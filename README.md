@@ -125,6 +125,16 @@ On implementation/test failure the Reviewer receives the actual command output, 
 
 Provider failures have a separate small retry budget and never create semantic bug tickets. Timeouts, spawn errors and signals are infrastructure failures and terminate with their evidence. Basic structured-output/schema failures and unauthorized tools are protocol failures; semantic planning violations receive the bounded self-repair described above before becoming terminal. Mozaik 4.2.0's fire-and-forget loop does not expose a public rejected-promise callback, so the bounded inference adapter converts provider rejection into a typed fault answer that follows the factory's explicit failure path.
 
+### Provider-compatible inference schemas
+
+`src/runtime/inference-schema.ts` projects full Zod schemas into model-facing generation schemas. A recursive allowlist removes `$schema`, `pattern`, string-length/property-count constraints, uniqueness/contains constraints and unneeded annotations. It visits schema nodes in `properties`, `$defs`, `items`, `prefixItems`, `anyOf`, `oneOf` and schema-valued `additionalProperties`. Literal property names, `required`, `enum` and descriptions remain unchanged. Input schemas are not mutated.
+
+The generic projection preserves useful JSON Schema structure and references. Gemini model names select a narrower legacy profile because Mozaik 4.2.0 sends structured output through `responseSchema`; JSON-Schema-only fields such as `additionalProperties` and `$ref` are omitted there. This distinction follows the [Google generation configuration reference](https://ai.google.dev/api/generate-content#v1beta.GenerationConfig). Current role schemas use objects, arrays, enums and primitives, not references or tuples; future reference/tuple schemas need a corresponding legacy conversion or a JSON-Schema-capable transport. Tools use the generic projection because Mozaik sends their parameters through `parametersJsonSchema`.
+
+This changes only provider guidance. Every returned answer still goes through the original `turn.schema.parse`, `parseContract`/`parsePlan`, and review checks; each tool invocation still runs its original Zod parser. Empty summaries, invalid IDs, excessive string lengths, unexpected keys and semantic DAG/concurrency violations are still rejected locally. No dependency or `node_modules` patch is required.
+
+When a provider exposes a numeric HTTP status, a 400 failure is marked non-retryable. HTTP 429/5xx and failures without a known permanent status retain bounded provider retries. Only the redacted message, safe numeric status and retry decision are recorded; raw provider error objects are not logged.
+
 ### Trace and metrics
 
 `events.jsonl` contains real timestamps, run ID, participant ID, role, ticket ID, action, start/end/instant phase, elapsed time, retry, model, provider token usage when supplied, estimated cost when configured, and human intervention count. Commands have bounded captured output. Raw provider responses/prompts are omitted from local event logs. Environment secrets and common API-key patterns are redacted from persisted evidence. `state.json` includes contract and project state; treat specifications and source as potentially private.

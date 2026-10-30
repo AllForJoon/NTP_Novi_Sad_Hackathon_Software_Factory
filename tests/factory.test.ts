@@ -71,6 +71,19 @@ test('Provider outages are bounded separately and never create semantic bug tick
   assert.ok(result.state.failures.every(f => f.category === 'provider'));
   assert.ok(!result.trace.records.some(e => e.event === 'bug.created'));
 });
+test('Structured HTTP 400 errors stop immediately while transient status codes retain provider retries', { timeout: 10000 }, async () => {
+  for (const status of [400, 429, 500, 502, 503]) {
+    let calls = 0;
+    const runner: InferenceRunner = { async run() { calls++; throw Object.assign(new Error(status === 400 ? 'INVALID_ARGUMENT: unsupported schema field' : 'Transient provider error'), { status }); }, async *stream() {} };
+    const result = await run(runner);
+    assert.equal(result.state.status, 'FAILED'); assert.equal(calls, status === 400 ? 1 : 2, `HTTP ${status}`);
+    assert.ok(result.state.failures.every(f => f.category === 'provider'));
+    assert.equal(result.state.tickets.length, 0);
+    const event = result.trace.records.find(e => e.event === 'provider.failed')!;
+    assert.equal((event.detail as { statusCode: number }).statusCode, status);
+    assert.equal((event.detail as { retryable: boolean }).retryable, status !== 400);
+  }
+});
 test('Empty specs and unsafe run IDs fail before output generation', async () => {
   await assert.rejects(() => run(new DemoRunner(), { spec: ' ' }), /empty/);
   await assert.rejects(() => run(new DemoRunner(), { runId: '../escape' }), /Unsafe/);

@@ -8,12 +8,13 @@ import {
 } from '@mozaik-ai/core';
 import { loadConfig, validateModels, type FactoryConfig } from '../config.js';
 import {
-  ContractSchema, PlanSchema, ReviewSchema, WorkerAnswerSchema, jsonSchema, parseContract, parsePlan,
+  ContractSchema, PlanSchema, ReviewSchema, WorkerAnswerSchema, parseContract, parsePlan,
   type EngineeringTicket, type Role, type Owner, type ReviewVerdict,
 } from '../schemas.js';
 import { EngineeringState, moveTicket, retryTicket, type ArtifactRecord, type FailureRecord, type VerificationResult } from '../state.js';
 import { on, OnEvent } from '../runtime/situations.js';
 import { BoundedRunner, defaultRunner } from '../runtime/inference.js';
+import { inferenceJsonSchema } from '../runtime/inference-schema.js';
 import { contractInvariants, instructions, planInvariants } from '../participants/prompts.js';
 import { TraceObserver } from '../tracing/observer.js';
 import { workerTools } from '../tools/agent-tools.js';
@@ -89,7 +90,7 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
     state.activeTurns.set(role, { startedAt: turn.startedAt, retry: turn.retry, ...(turn.ticket ? { ticketId: turn.ticket.id } : {}) });
     api.runLoop(actor.getId(), JSON.stringify({ role, ...turn.task }), {
       model: modelFor(role), context, tools: turn.tools, maxOutputTokens: 12000,
-      structuredOutput: { name: role.replaceAll('-', '_'), schema: jsonSchema(turn.schema), strict: true },
+      structuredOutput: { name: role.replaceAll('-', '_'), schema: inferenceJsonSchema(turn.schema, modelFor(role)), strict: true },
     });
   };
   const ask = (role: Role, task: Record<string, unknown>, schema: z.ZodType, ticket?: EngineeringTicket, tools: Tool[] = []): Promise<unknown> => {
@@ -171,10 +172,10 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
     try { value = JSON.parse(payload.answer.content.text); }
     catch { throw new Error(`Invalid JSON from ${role}`); }
     if (value.__factoryFault) {
-      const { category, message } = value.__factoryFault;
+      const { category, message, statusCode, retryable } = value.__factoryFault;
       state.failures.push({ timestamp: new Date().toISOString(), category, message, ...(turn.ticket ? { ticketId: turn.ticket.id } : {}) });
-      trace.record({ role, event: `${category}.failed`, detail: { message }, retry: turn.retry });
-      if (category === 'provider' && turn.retry < config.maxProviderRetries) { turn.retry++; launch(role, turn); return; }
+      trace.record({ role, event: `${category}.failed`, detail: { message, ...(category === 'provider' ? { statusCode: statusCode ?? null, retryable: retryable !== false } : {}) }, retry: turn.retry });
+      if (category === 'provider' && retryable !== false && turn.retry < config.maxProviderRetries) { turn.retry++; launch(role, turn); return; }
       pending.delete(role); state.activeTurns.delete(role);
       turn.reject(new Error(`${category}: ${message}`)); fail(new Error(message), category, turn.ticket?.id); return;
     }
