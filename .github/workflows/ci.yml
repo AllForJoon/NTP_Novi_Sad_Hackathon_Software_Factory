@@ -1,0 +1,37 @@
+name: Factory verification
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - run: npm run smoke
+      - run: npm run smoke:recovery
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: factory-evidence-${{ matrix.os }}
+          path: |
+            traces/
+            output/*/factory-verification.json
+            output/*/product-contract.json
+            output/*/src/
+            output/*/tests/
+          if-no-files-found: ignore
