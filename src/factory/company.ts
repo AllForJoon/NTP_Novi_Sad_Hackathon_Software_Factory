@@ -14,7 +14,7 @@ import {
 import { EngineeringState, moveTicket, retryTicket, type ArtifactRecord, type FailureRecord, type VerificationResult } from '../state.js';
 import { on, OnEvent } from '../runtime/situations.js';
 import { BoundedRunner, defaultRunner } from '../runtime/inference.js';
-import { instructions } from '../participants/prompts.js';
+import { contractInvariants, instructions, planInvariants } from '../participants/prompts.js';
 import { TraceObserver } from '../tracing/observer.js';
 import { workerTools } from '../tools/agent-tools.js';
 import { captureArtifacts, hashFile, integrateArtifacts, latestAccepted, safePath, scaffold } from '../tools/workspace.js';
@@ -100,6 +100,37 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
     });
   };
 
+  const askPlanning = async <T>(
+    role: 'pm' | 'tech-lead', kind: 'contract' | 'plan', initialTask: Record<string, unknown>,
+    schema: z.ZodType, validate: (value: unknown) => T, invariants: readonly string[],
+  ): Promise<T> => {
+    let task: Record<string, unknown> = { ...initialTask, invariants };
+    for (let retry = 0; ; retry++) {
+      // ask() already checks the basic schema. Provider/protocol errors retain
+      // their existing handling; only semantic validation gets planning repair.
+      const candidate = await ask(role, task, schema);
+      try { return validate(candidate); }
+      catch (error) {
+        const validationError = redact(error instanceof Error ? error.message : String(error));
+        const evidence = { retry, attempt: retry + 1, maxRetries: config.maxPlanningRetries, validationError };
+        state.failures.push({ timestamp: new Date().toISOString(), category: 'protocol', message: `${kind} semantic validation: ${validationError}` });
+        emit(`${kind}.validation_failed`, actors.get(role)!.getId(), evidence);
+        trace.checkpoint();
+        if (retry >= config.maxPlanningRetries)
+          throw new Error(`${kind} semantic validation exhausted after ${retry + 1} attempt(s) (${config.maxPlanningRetries} repair(s)): ${validationError}`);
+        task = {
+          ...initialTask, invariants,
+          task: `repair-${kind}`,
+          retryIndex: retry + 1,
+          instruction: `Repair only the invalid ${kind} constraints identified by validationError. Preserve the valid parts and original requirements. Return the complete corrected ${kind} in the same schema. All listed invariants remain non-negotiable.`,
+          [kind === 'contract' ? 'previousInvalidContract' : 'previousInvalidPlan']: candidate,
+          validationError,
+        };
+        emit(`${kind}.repair_requested`, actors.get(role)!.getId(), { ...evidence, retry: retry + 1, attempt: retry + 2 });
+      }
+    }
+  };
+
   const observer = createHuman({ name: 'Trace Observer (deterministic)', capabilities: ['observe'], handlers: [{
     specification: new OnEvent(() => true),
     processor: { apply({ event }) {
@@ -125,7 +156,7 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
         }
         trace.record({ role, participant: event.producerId, event: event.type, ticketId: turn?.ticket?.id ?? null, model: modelFor(role as Role), tokenUsage: usage ? { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens } : null, estimatedCostUsd: state.metrics.estimatedCostUsd });
       } else if (!/^(inference|function_call|message_received|interception|model\.|participant\.)/.test(event.type)) {
-        trace.record({ role, participant: event.producerId, event: event.type, ticketId: payload.ticketId ?? null, detail: payload });
+        trace.record({ role, participant: event.producerId, event: event.type, ticketId: payload.ticketId ?? null, retry: payload.retry ?? 0, detail: payload });
       }
     } },
   }] });
@@ -285,11 +316,11 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
   const handlers: Record<Role, import('@mozaik-ai/core').SituationHandler[]> = {
     pm: [on(['spec.received'], async () => {
       state.status = 'PLANNING';
-      state.productContract = parseContract(await ask('pm', { task: 'contract', specification: state.originalSpec }, ContractSchema));
+      state.productContract = await askPlanning('pm', 'contract', { task: 'contract', specification: state.originalSpec }, ContractSchema, parseContract, contractInvariants);
       emit('contract.ready', actors.get('pm')!.getId());
     }, error => fail(error, 'protocol'))],
     'tech-lead': [on(['contract.ready'], async () => {
-      state.engineeringPlan = parsePlan(await ask('tech-lead', { task: 'plan', contract: state.productContract }, PlanSchema), state.productContract!);
+      state.engineeringPlan = await askPlanning('tech-lead', 'plan', { task: 'plan', contract: state.productContract }, PlanSchema, value => parsePlan(value, state.productContract!), planInvariants);
       emit('plan.ready', actors.get('tech-lead')!.getId());
     }, error => fail(error, 'protocol'))],
     'developer-a': [on(['ticket.claimed'], event => {

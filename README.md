@@ -84,6 +84,14 @@ The board reacts to events rather than awaiting a fixed sequence of developers. 
 
 Events include `spec.received`, `contract.ready`, `plan.ready`, `ticket.claimed`, `ticket.completed`, `qa.started`, `qa.completed`, `review.requested`, `review.approved`, `review.changes_requested`, `integration.requested`, `integration.completed`, `verification.started`, `verification.failed`, `verification.passed`, `bug.created`, `rework.requested` and terminal project events.
 
+### Contract and plan self-repair
+
+A schema-valid model response can still violate semantic rules. For example, a plan that makes Developer B depend on Developer A is rejected by the concurrency validator. Instead of immediately ending the run, the factory sends the **same PM or Tech Lead participant** its previous invalid output, the exact redacted validation error, original specification or Product Contract, and explicit non-negotiable invariants. That agent produces a complete corrected response, and the unchanged semantic validator runs again. The factory never fabricates extra tickets or relaxes the independent-developer requirement.
+
+`MAX_PLANNING_RETRIES=2` permits the initial response plus at most two semantic repairs **per planning role**. Zero disables repairs. This budget is separate from provider retries and code/CI repairs. Exhaustion terminates with a clear protocol failure naming the phase, attempt count and last validation error. Basic JSON/schema errors keep their existing protocol-failure path; they are not treated as semantic planning mistakes.
+
+The real events `contract.validation_failed`, `contract.repair_requested`, `plan.validation_failed` and `plan.repair_requested` include the role/run ID, top-level retry index and validation evidence. The initial failed response has retry index 0; requested repairs use 1, 2, etc. Invalid plans/contracts are never published as ready, so dependent participants cannot start from rejected data.
+
 ### Real concurrency and isolation
 
 The plan validator requires initially independent work for **both** developers. The board dispatches their claims and QA's claim without awaiting other turns. Mozaik's fire-and-forget `runLoop` and nonblocking situation processors allow their actual inference and tool work to overlap. There is no `await devA(); await devB()` pipeline.
@@ -115,7 +123,7 @@ A failed step stops that attempt. Every process records command, explicit cwd, s
 
 On implementation/test failure the Reviewer receives the actual command output, contract, ownership and candidate artifacts. It must identify blocking issues and existing owned files. The board creates `BUG-*` tickets, assigns the relevant original owner, wakes that worker, requests another review, integrates the repair and reruns CI. A source ticket's CI repair budget defaults to **2**; review rejection retries are also bounded. Unfixable candidates terminate as `FAILED`.
 
-Provider failures have a separate small retry budget and never create semantic bug tickets. Timeouts, spawn errors and signals are infrastructure failures and terminate with their evidence. Invalid structured output/unauthorized tools are protocol failures. Mozaik 4.2.0's fire-and-forget loop does not expose a public rejected-promise callback, so the bounded inference adapter converts provider rejection into a typed fault answer that follows the factory's explicit failure path.
+Provider failures have a separate small retry budget and never create semantic bug tickets. Timeouts, spawn errors and signals are infrastructure failures and terminate with their evidence. Basic structured-output/schema failures and unauthorized tools are protocol failures; semantic planning violations receive the bounded self-repair described above before becoming terminal. Mozaik 4.2.0's fire-and-forget loop does not expose a public rejected-promise callback, so the bounded inference adapter converts provider rejection into a typed fault answer that follows the factory's explicit failure path.
 
 ### Trace and metrics
 
@@ -136,6 +144,7 @@ Normal invocation counts as zero human interventions. `EngineeringState.recordHu
 | `QA_MODEL`, `REVIEWER_MODEL` | Optional testing and review overrides |
 | `MAX_RETRIES_PER_TICKET` | `2`; bounded review/CI repairs |
 | `MAX_PROVIDER_RETRIES` | `1`; additional provider attempts per turn |
+| `MAX_PLANNING_RETRIES` | `2`; additional semantic repairs for each PM/Tech Lead phase (0–5) |
 | `MAX_MODEL_CALLS_PER_TURN` | `30`; bounds tool/inference loops |
 | `MODEL_TIMEOUT_MS` | `120000` per inference request |
 | `COMMAND_TIMEOUT_MS` | `30000` per child command |
@@ -154,7 +163,7 @@ npm run smoke
 npm run smoke:recovery
 ```
 
-Tests cover contract/reference validation, DAG and ownership checks, state transitions, repair limits, real process evidence, filesystem boundaries, artifact tampering, child environment/timeout behavior, bounded provider faults, concurrent worker barriers and end-to-end failure/recovery. GitHub Actions runs the checks and both offline smokes on Ubuntu and Windows.
+Tests cover contract/reference validation, DAG and ownership checks, state transitions, repair limits, real process evidence, filesystem boundaries, artifact tampering, child environment/timeout behavior, bounded provider faults, concurrent worker barriers and end-to-end failure/recovery. Scripted planning tests additionally cover the live serial-plan failure, corrected plans, latest-candidate feedback, PM duplicate/reference/coverage repairs, independent role budgets, exhaustion, zero budget, schema-failure separation and redacted evidence. GitHub Actions runs the checks and both offline smokes on Ubuntu and Windows.
 
 Inspect a successful project's `product-contract.json`, `factory-verification.json`, `src/`, `tests/`, and its matching trace directory. For the Sum CLI delivery:
 

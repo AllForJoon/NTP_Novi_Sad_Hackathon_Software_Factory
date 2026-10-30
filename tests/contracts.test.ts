@@ -51,6 +51,10 @@ test('Role configuration shares defaults but supports per-role models and bounde
   const config = loadConfig({ FACTORY_MODEL: 'shared', QA_MODEL: 'qa-only', MAX_RETRIES_PER_TICKET: '0' });
   assert.equal(config.models.pm, 'shared'); assert.equal(config.models.qa, 'qa-only'); assert.equal(config.maxRetries, 0);
   assert.equal(config.inputPrice, null);
+  assert.equal(config.maxPlanningRetries, 2);
+  assert.equal(loadConfig({ MAX_PLANNING_RETRIES: '0' }).maxPlanningRetries, 0);
+  assert.equal(loadConfig({ MAX_PLANNING_RETRIES: '3' }).maxPlanningRetries, 3);
+  for (const value of ['-1', '1.5', '6', 'NaN']) assert.throws(() => loadConfig({ MAX_PLANNING_RETRIES: value }), /MAX_PLANNING_RETRIES/);
   assert.throws(() => loadConfig({ MAX_RETRIES_PER_TICKET: '-1' }));
   assert.throws(() => loadConfig({ INPUT_USD_PER_MILLION: 'NaN' }));
 });

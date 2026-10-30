@@ -2,7 +2,7 @@ import { supportedModels } from '@mozaik-ai/core';
 import type { Role } from './schemas.js';
 
 export interface FactoryConfig {
-  models: Record<Role, string>; maxRetries: number; maxProviderRetries: number;
+  models: Record<Role, string>; maxRetries: number; maxProviderRetries: number; maxPlanningRetries: number;
   maxModelCalls: number; modelTimeoutMs: number; commandTimeoutMs: number; runTimeoutMs: number;
   inputPrice: number | null; outputPrice: number | null;
 }
@@ -26,6 +26,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FactoryConfig 
     models: Object.fromEntries(Object.entries(modelEnv).map(([role, key]) => [role, env[key] || env.FACTORY_MODEL || 'gpt-5.4-mini'])) as Record<Role, string>,
     maxRetries: integer('MAX_RETRIES_PER_TICKET', 2, 0, 5),
     maxProviderRetries: integer('MAX_PROVIDER_RETRIES', 1, 0, 3),
+    maxPlanningRetries: integer('MAX_PLANNING_RETRIES', 2, 0, 5),
     maxModelCalls: integer('MAX_MODEL_CALLS_PER_TURN', 30, 1, 100),
     modelTimeoutMs: integer('MODEL_TIMEOUT_MS', 120000, 50, 600000),
     commandTimeoutMs: integer('COMMAND_TIMEOUT_MS', 30000, 100, 300000),

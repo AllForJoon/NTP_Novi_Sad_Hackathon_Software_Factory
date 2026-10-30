@@ -1,6 +1,8 @@
-# Implementation and validation record
+# Initial implementation and validation record
 
 Validated locally on 2026-10-30, Windows, Node v22.14.0, npm 10.9.2.
+
+This opening record describes the initial implementation. The planning self-repair follow-up and its current 29-test results are recorded below.
 
 ## Starting point and delivered files
 
@@ -79,3 +81,66 @@ No provider API credentials were present. Live arbitrary-spec generation and the
 The current scope deliberately excludes external runtime dependencies. File/tool restrictions are application boundaries, not an OS sandbox. The Mozaik inference API exposes no request abort signal; timed-out SDK requests may finish in the background. There is no crash resume or distributed worker service. Multi-model cost rates and full batched tool-call support are follow-up work. See README for the complete operating limits.
 
 The added GitHub Actions workflow has not been claimed as passing based on local tests alone; its remote status must be checked after push.
+
+## Planning self-repair follow-up
+
+Implemented the second brief (`../codex_second.md`) against the existing runtime without redesigning the company. The reported Gemini run failed semantic plan validation with `Plan needs independent initial tickets for both developers`; this is not a provider failure.
+
+Changed files:
+
+- `src/factory/company.ts`: shared bounded semantic-repair loop for PM and Tech Lead; validation/repair events and top-level retry metadata.
+- `src/config.ts` and `.env.example`: `MAX_PLANNING_RETRIES`, default 2, allowed integers 0 through 5.
+- `src/participants/prompts.ts`: explicit contract and all eleven non-negotiable plan invariants.
+- `tests/planning-repair.test.ts`: eleven new deterministic planning-repair tests.
+- `tests/contracts.test.ts`: configuration default, zero/override and invalid-limit checks.
+- `README.md` and this record: retry semantics, trace events, evidence and next live command.
+
+The same planning participant receives the original spec or valid Product Contract, its latest rejected candidate, exact redacted validation error, repair-only instruction and invariants. Each replacement must pass the same original validator. The budget is per planning role: initial attempt plus at most two semantic repairs by default, separate from provider retries and implementation repairs. Exhaustion is a clear terminal protocol failure; it does not produce fake developer or bug tickets. Basic schema errors retain their previous protocol-failure handling.
+
+**No validators were weakened or modified.** `src/schemas.ts` has no diff. Both developers still need an independent initial ticket. Ownership, entry-point, coverage, dependency/DAG and reserved-ID checks all remain in force.
+
+New real events:
+
+```text
+contract.validation_failed
+contract.repair_requested
+plan.validation_failed
+plan.repair_requested
+```
+
+Each event uses existing run/participant/role tracing, a top-level retry index and validation error evidence. Retry 0 denotes the initial rejected output; repairs start at 1. Invalid contracts/plans are not published as ready. Redaction is tested against persisted JSONL/state and final error messages.
+
+New deterministic cases prove:
+
+1. A serial Tech Lead plan is rejected, automatically repaired by the same participant, then Dev A, Dev B and QA begin and the complete run passes CI.
+2. Repeated invalid plans stop after exactly three attempts with the default two-repair budget.
+3. The final allowed repair can succeed, and the prompt contains the latest rejected plan and latest error.
+4. PM repairs duplicate IDs.
+5. PM repairs unknown requirement references.
+6. PM repairs uncovered requirements.
+7. PM exhaustion stops before Tech Lead work.
+8. Zero planning retries performs only the initial attempt.
+9. Basic schema errors do not enter semantic repair.
+10. Secret-shaped validation evidence is redacted.
+11. PM and Tech Lead receive independent repair budgets.
+
+Executed after the code/test changes on 2026-10-30:
+
+| Exact command | Result |
+| --- | --- |
+| `npm run typecheck` | Passed |
+| `npm run build` | Passed |
+| `npm test` | **29 passed, 0 failed, 0 skipped** |
+| `npm run smoke` | COMPLETED; normal generated-project gates passed |
+| `npm run smoke:recovery` | COMPLETED; first candidate failed QA, automatic code repair passed the second CI attempt |
+
+Smoke traces: `2026-10-30T11-28-30-739Z-4451fb29` (normal) and `2026-10-30T11-28-34-903Z-bb4f9d00` (code recovery). Planning-repair tests use isolated temporary roots and actual Mozaik loops/compiler/test processes with scripted inference; no Gemini API call is required or claimed for this follow-up.
+
+For the next real Gemini run, from the repository root in a PowerShell session that already has `GEMINI_API_KEY` configured:
+
+```powershell
+$env:FACTORY_MODEL = 'gemini-3.5-flash-lite'
+npm run factory -- ./specs/examples/sum-cli.md
+```
+
+This model matches the latest existing live trace and the installed Mozaik registry. Existing role-specific model overrides still take precedence over `FACTORY_MODEL`; keep them on the intended Gemini models when reproducing that run. `MAX_PLANNING_RETRIES` defaults to 2 without any environment change.
