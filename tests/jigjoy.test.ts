@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createAgent, defineRuntime, RuntimeState, DeveloperMessageItem, SystemMessageItem, UserMessageItem, ModelContext, ModelMessageItem, FunctionCallOutputItem, type InferenceInput, type Tool } from '@mozaik-ai/core';
+import { createAgent, defineRuntime, RuntimeState, DeveloperMessageItem, SystemMessageItem, UserMessageItem, ModelContext, ModelMessageItem, FunctionCallOutputItem, type Tool } from '@mozaik-ai/core';
 import { JigJoyInferenceRunner } from '../src/runtime/jigjoy.js';
 import { acquireJigJoyCredential, type GatewayCredential } from '../src/runtime/jigjoy-auth.js';
 import { BoundedRunner } from '../src/runtime/inference.js';

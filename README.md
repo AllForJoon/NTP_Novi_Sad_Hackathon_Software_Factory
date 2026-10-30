@@ -1,137 +1,112 @@
-# Mozaik Software Factory
+# AI Software Company
 
-[![Factory verification](https://github.com/AllForJoon/NTP_Novi_Sad_Hackathon_Software_Factory/actions/workflows/ci.yml/badge.svg)](https://github.com/AllForJoon/NTP_Novi_Sad_Hackathon_Software_Factory/actions/workflows/ci.yml)
+Give the factory a Markdown software specification. A team of concurrent Mozaik agents plans, implements, tests, reviews, repairs, integrates, and verifies a small TypeScript CLI or HTTP API.
 
-**A Markdown specification becomes a verified TypeScript project through a concurrent AI engineering team.**
+## 1. What it does
 
-JigJoy NTP Novi Sad Hackathon 2026 · Track 01: Software Factory · Built on **Mozaik v4.2.0**.
+```text
+spec.md → Product Contract → Engineering Plan → concurrent engineering
+        → review → deterministic CI → working TypeScript project
+```
 
-Product Manager, Tech Lead, two developers, independent QA and a read-only Reviewer work through Mozaik events and tool loops. A deterministic Integrator owns the final compiler, test and HTTP-startup gates. A model saying "done" cannot complete a project.
+The same live Factory handles supported specifications without example-specific implementations. Generated projects use Node built-ins only. Completion requires real compiler/test exit codes; HTTP projects must also start a server and answer a request.
 
-**Start here:** [Submission guide](docs/SUBMISSION.md) · [Live evidence and generated projects](docs/evidence/jigjoy-2026-10-31/README.md) · [Architecture](docs/ARCHITECTURE.md) · [Hosted inference investigation](docs/JIGJOY_HOSTED.md)
+## 2. Architecture
 
-## Verified live results
+```mermaid
+flowchart TD
+  Spec[Customer specification] --> PM[Product Manager]
+  PM --> Lead[Tech Lead]
+  Lead --> Board[Engineering Board / Shared State]
+  subgraph Concurrent[Concurrent engineering]
+    A[Developer A: implementation]
+    B[Developer B: reliability]
+    QA[QA: adversarial tests]
+  end
+  Board --> A
+  Board --> B
+  Board --> QA
+  A --> Reviewer[Read-only Reviewer]
+  B --> Reviewer
+  QA --> Reviewer
+  Reviewer --> CI[Deterministic Integrator / CI]
+  Reviewer -->|rework / BUG ticket| Board
+  CI -->|failure evidence| Reviewer
+  CI -->|all checks pass| Pass[Verified project]
+```
 
-These are actual JigJoy-hosted runs, **without demo flags**, recorded on 2026-10-31 KST. Generated QA and a separate acceptance checker both exercised the built projects.
+All roles use `@mozaik-ai/core@4.2.0`: `defineRuntime`, participants, events and `runLoop`. They share typed `EngineeringState`: contract, plan, tickets, artifact hashes, reviews, verification results and metrics. Each role has different prompts, responsibilities, tools, permissions and success criteria.
 
-| Specification | Factory result | Generated QA tests | Independent checks |
-| --- | --- | ---: | ---: |
-| [Sum CLI](specs/examples/sum-cli.md) | COMPLETED | 25 | 15 |
-| [Notes HTTP API](specs/examples/notes-api.md) | COMPLETED | 10 | 16 |
-| [UTF-8 file statistics CLI](specs/validation/file-counts.md) | COMPLETED | 16 | 15 |
-| [Task HTTP API](specs/validation/tasks-api.md) | COMPLETED | 21 | 22 |
+**Developer A, Developer B and QA genuinely run concurrently.** The board dispatches independent tickets without awaiting other workers. Developers own disjoint source files; QA owns tests; each works in an isolated snapshot. Reviewer cannot edit or execute tools. Only Integrator / CI can complete the project.
 
-The last two specifications were unseen when first executed; their exact inputs are now committed for reproduction. [Recorded timestamps](docs/evidence/jigjoy-2026-10-31/manifest.json) establish real overlap among Developer A, Developer B and QA in all four runs. The file-statistics run also completed an automatic Reviewer → QA revision → recheck cycle.
+## 3. Why it satisfies Track 01
 
-## Run a real Factory
+| Criterion | Points | Implementation and evidence |
+| --- | ---: | --- |
+| Working generated software / hidden task | 35 | One spec command; real typecheck, build and QA tests; HTTP startup gate; CLI and API examples |
+| Multi-agent architecture | 25 | Mozaik runtime, independent roles, typed shared state; three-worker barrier and overlapping live trace spans |
+| Autonomy | 15 | Strict contract/plan validation, planning repair, Reviewer triage, BUG tickets, owner rework and verification rerun; bounded provider recovery |
+| Transparency | 15 | Timestamped JSONL: role, ticket, duration, retries, model/provider and measured token usage; optional estimated cost; explicit human-intervention records |
+| Reproducible setup | 10 | Locked install, commands below, and [Ubuntu/Windows CI](https://github.com/AllForJoon/NTP_Novi_Sad_Hackathon_Software_Factory/actions/workflows/ci.yml) |
 
-Requires **Node.js 22+**, npm, and a JigJoy account with hosted inference access. From the repository root:
+The regression suite tests concurrency, planning recovery, CI failure → BUG → repair, filesystem isolation, artifact integrity and provider-failure separation. [One representative successful live trace excerpt](docs/example-trace.jsonl) is included; new runs generate full traces. Unavailable token/cost metrics remain `null`; costs are estimates only when rates are configured. Hosts record actual interventions through `EngineeringState.recordHumanIntervention()`; normal initialization does not count as one.
+
+## 4. Quick Start
+
+Requires **Node.js 22+** and npm. The supplied `.env.example` selects JigJoy hosted `deepseek-flash`; install the official Baro CLI and sign in with an account that has hosted inference access:
 
 ```sh
 npm ci
 cp .env.example .env
 npm install -g baro-ai@0.121.0
 baro login
+npm run build
+npm test
 npm run factory -- ./specs/examples/sum-cli.md
 ```
 
-`cp` also works as the PowerShell `Copy-Item` alias. Keep an existing private `.env` instead of overwriting it. Normal `npm ci` applies the checked-in Mozaik compatibility patch automatically.
+PowerShell can use `Copy-Item .env.example .env`. Copy the configuration only on first setup. JigJoy mode needs no OpenAI, Anthropic or Gemini API key; it uses Baro's official credential helper. Account credit/limits apply. Existing Mozaik Cloud pairing continues exporting redacted telemetry and is separate from inference authentication. Optional external providers and execution limits are configured in [.env.example](.env.example).
 
-The supplied configuration selects:
+`npm ci` automatically applies the required pinned compatibility [patch](patches/README.md). Generated code runs with the invoking user's privileges; use an appropriate environment for untrusted specifications.
 
-```dotenv
-FACTORY_PROVIDER=jigjoy
-FACTORY_MODEL=deepseek-flash
-FACTORY_REASONING_EFFORT=low
-```
-
-**JigJoy mode requires no OpenAI, Anthropic or Gemini API key.** The official Baro helper exchanges the local login session for a short-lived gateway credential; the runner keeps it in memory. Mozaik Cloud pairing is separate and continues exporting redacted telemetry if already paired. Account credits and service limits still apply; Pro membership alone is not a promise of unlimited inference.
-
-For the HTTP example:
+## 5. Example and outputs
 
 ```sh
-npm run factory -- ./specs/examples/notes-api.md
+npm run factory -- ./specs/examples/sum-cli.md
+# HTTP example: npm run factory -- ./specs/examples/notes-api.md
 ```
 
-Success ends with `COMPLETED` and exit code 0. Inspect `output/<run-id>/` for the project and verification record, and `traces/<run-id>/` for timestamped events and state. CLI projects must pass typecheck, build and QA tests; HTTP projects must additionally start a real server and answer an HTTP request. Generated projects use Node built-ins only.
-
-## Review without an inference account
-
-```sh
-npm ci
-npm run typecheck
-npm run build
-npm test
-npm run verify:evidence
+```text
+output/<run-id>/   # src/, tests/, package.json, tsconfig.json, contract and verification
+traces/<run-id>/   # events.jsonl, activity.log, state.json
 ```
 
-- `npm test`: **73 deterministic runtime regression tests**, including a three-worker concurrency barrier, strict schemas, planning repair, CI/BUG recovery, tool isolation, credential redaction and repeated hosted-adapter tool calls.
-- `npm run verify:evidence`: checks archived artifact hashes and concurrency evidence, recompiles all four unchanged live-generated deliveries, reruns **72 generated QA tests** and **68 independent acceptance checks**, including both HTTP startup gates. This is an **offline replay of real outputs**, not a new inference run. Scratch projects remain in ignored `.work/` for inspection.
+`COMPLETED` and exit 0 require Reviewer acceptance plus passing deterministic CI, not an agent saying "done". Inspect `factory-verification.json` for command results and the matching trace for role activity and repairs. In a generated project, run `node dist/index.js sum 2 3` to print `5`.
 
-To independently check a new built delivery:
+For the official hidden task, run `npm run factory -- <provided-spec.md>`. Copy the verified project's `src/`, `tests/`, `package.json` and `tsconfig.json` to `hidden/<spec-name>/`, excluding the local `node_modules` link and `dist/`. The generated package already declares its development dependencies: `npm install --ignore-scripts`, `npm run build` and `npm test` work there without manually changing generated code. `hidden/` is not ignored; record any actual human edits explicitly.
 
-```sh
-npm run verify:output -- sum-cli output/<run-id>
+## 6. Recovery example
+
+```text
+verification fails → Reviewer classifies failure → BUG ticket → responsible developer
+                   → review → re-integration → verification
 ```
-
-Supported checkers are `sum-cli`, `notes-api`, `file-counts` and `tasks-api`. This task-specific oracle is outside the Factory and never supplies implementation code to its agents.
-
-Optional recovery demonstration:
 
 ```sh
 npm run smoke:recovery
 ```
 
-The smoke commands use explicitly scripted offline inference. The recovery fixture inserts a real defect, observes a failing Node assertion, creates a BUG ticket and verifies the generated repair. They are separate from the hosted results above. [GitHub Actions](https://github.com/AllForJoon/NTP_Novi_Sad_Hackathon_Software_Factory/actions/workflows/ci.yml) runs the regression suite, archived-output replay and both smoke checks on Ubuntu and Windows without provider secrets.
+This is an explicitly scripted offline fixture: it introduces a real defect, observes a failing Node test, and exercises the actual Mozaik repair/CI loop. `npm run smoke` checks the normal offline path. Both need no inference credentials. Contract/plan errors have their own repair budget; auth/quota failures receive bounded provider handling and never become product BUG tickets.
 
-## How it works
+## 7. Repository structure
 
-```mermaid
-flowchart TD
-  Spec[Markdown specification] --> PM[Product Manager]
-  PM -->|Product Contract| TL[Tech Lead]
-  TL -->|Engineering Plan| Board[Deterministic project board]
-  subgraph Workers[Concurrent Mozaik worker loops]
-    A[Developer A]
-    B[Developer B]
-    QA[Independent QA]
-  end
-  Board --> A
-  Board --> B
-  Board --> QA
-  A --> Review[Read-only Reviewer]
-  B --> Review
-  QA --> Review
-  Review -->|accepted artifacts| CI[Integrator / CI]
-  Review -->|changes requested| Board
-  CI -->|failure evidence| Review
-  CI -->|all gates pass| Output[Verified TypeScript project]
+```text
+src/              Mozaik factory, shared state, role policies, tools and tracing
+tests/            Deterministic architecture, validation and recovery regressions
+specs/examples/   CLI and HTTP specifications
+docs/             One small, labeled live trace example
+patches/          Required version-pinned runtime compatibility patch
+.github/          Ubuntu and Windows verification workflow
 ```
 
-- **Differentiated authority:** PM and Tech Lead plan; developers own disjoint source files; QA owns tests; Reviewer cannot edit or run tools; CI controls scaffold and completion.
-- **Genuine concurrency:** initially independent developer tickets and QA are dispatched without awaiting one another. Isolated workspaces and hashed artifacts prevent shared-file overwrites.
-- **Bounded autonomous repair:** invalid semantic plans return to Tech Lead; rejected artifacts return to their owner; failed CI produces Reviewer-classified BUG tickets and fresh verification. Provider/auth/quota failures remain separate from product defects.
-- **Strict local validation:** original Zod contracts and ownership/DAG rules remain authoritative. Hosted JSON-format fallback changes generation guidance, not acceptance rules.
-- **Mozaik remains the runtime:** `defineRuntime`, participants, events and `runLoop` orchestrate every role. The custom JigJoy runner only translates inference; Baro supplies authentication, not orchestration.
-
-## Repository map
-
-| Path | Purpose |
-| --- | --- |
-| `src/factory/`, `src/state.ts` | Mozaik event handlers, board, review and integration |
-| `src/participants/`, `src/schemas.ts` | Role policies and strict contracts |
-| `src/runtime/` | Hosted runner, provider retries, schemas and situations |
-| `src/tools/`, `src/tracing/` | Owned-file tools, fixed checks and redacted evidence |
-| `tests/` | Runtime and adapter regression tests |
-| `specs/examples/`, `specs/validation/` | Bundled and originally unseen specifications |
-| `scripts/` | Independent output verification and archived-delivery replay |
-| `docs/evidence/` | Curated live traces, hashed generated sources and verification |
-| `patches/` | Version-pinned Gemini tool-signature compatibility patch |
-
-## Configuration and limits
-
-See [.env.example](.env.example) and the [configuration reference](docs/ARCHITECTURE.md#configuration). External `openai`, `anthropic`, `gemini`, and legacy `auto` modes remain available with matching models/keys. JigJoy aliases are checked by the hosted gateway rather than Mozaik's upstream registry.
-
-Scope is small TypeScript CLIs and in-memory HTTP APIs, with no runtime dependencies, database, frontend or deployment. Generated code executes with the invoking user's privileges; this is not an OS sandbox. Runs, retries and tool calls are bounded; there is no crash resume. Hosted verification covers one Chat Completions model, not every account/model entitlement. SDK-provider cancellation can finish later than its outer deadline; the JigJoy fetch runner also aborts its own requests. Passing finite tests does not prove arbitrary-spec correctness.
-
-[Documentation index](docs/README.md) · [MIT license](LICENSE)
+Full local checks: `npm run typecheck`, `npm run build`, `npm test`, `npm run smoke`, `npm run smoke:recovery`. Runtime workspaces, generated outputs, complete traces and credentials stay untracked. [MIT license](LICENSE).

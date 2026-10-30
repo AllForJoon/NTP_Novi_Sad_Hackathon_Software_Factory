@@ -8,3 +8,10 @@ output/
 traces/
 coverage/
 *.log
+/.baro/
+/.mozaik/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
