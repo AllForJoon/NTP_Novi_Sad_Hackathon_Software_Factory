@@ -1,0 +1,128 @@
+diff --git a/node_modules/@mozaik-ai/core/dist/index.d.mts b/node_modules/@mozaik-ai/core/dist/index.d.mts
+index eac3102..1a88dc2 100644
+--- a/node_modules/@mozaik-ai/core/dist/index.d.mts
++++ b/node_modules/@mozaik-ai/core/dist/index.d.mts
+@@ -8,11 +8,14 @@ declare class FunctionCallItem extends ContextItem {
+     readonly callId: string;
+     readonly name: string;
+     readonly args: string;
++    /** Opaque Gemini function-call metadata; replay unchanged and do not log. */
++    readonly thoughtSignature?: string;
+     private constructor();
+     static rehydrate(data: {
+         callId: string;
+         name: string;
+         args: string;
++        thoughtSignature?: string;
+     }): FunctionCallItem;
+ }
+ 
+diff --git a/node_modules/@mozaik-ai/core/dist/index.d.ts b/node_modules/@mozaik-ai/core/dist/index.d.ts
+index eac3102..1a88dc2 100644
+--- a/node_modules/@mozaik-ai/core/dist/index.d.ts
++++ b/node_modules/@mozaik-ai/core/dist/index.d.ts
+@@ -8,11 +8,14 @@ declare class FunctionCallItem extends ContextItem {
+     readonly callId: string;
+     readonly name: string;
+     readonly args: string;
++    /** Opaque Gemini function-call metadata; replay unchanged and do not log. */
++    readonly thoughtSignature?: string;
+     private constructor();
+     static rehydrate(data: {
+         callId: string;
+         name: string;
+         args: string;
++        thoughtSignature?: string;
+     }): FunctionCallItem;
+ }
+ 
+diff --git a/node_modules/@mozaik-ai/core/dist/index.js b/node_modules/@mozaik-ai/core/dist/index.js
+index 1b2f603..5ad9b2d 100644
+--- a/node_modules/@mozaik-ai/core/dist/index.js
++++ b/node_modules/@mozaik-ai/core/dist/index.js
+@@ -178,15 +178,16 @@ var ModelMessageItem = class _ModelMessageItem extends ContextItem {
+ 
+ // src/domain/model-context/context-item/model-item/function-call.ts
+ var FunctionCallItem = class _FunctionCallItem extends ContextItem {
+-  constructor(callId, name, args) {
++  constructor(callId, name, args, thoughtSignature) {
+     super();
+     this.type = "function_call";
+     this.callId = callId;
+     this.name = name;
+     this.args = args;
++    if (thoughtSignature !== void 0) this.thoughtSignature = thoughtSignature;
+   }
+   static rehydrate(data) {
+-    return new _FunctionCallItem(data.callId, data.name, data.args);
++    return new _FunctionCallItem(data.callId, data.name, data.args, data.thoughtSignature);
+   }
+ };
+ 
+@@ -1454,7 +1455,10 @@ var GeminiGenerateContentMapper = class {
+         } catch (e) {
+           args = {};
+         }
+-        this.addPart(contents, "model", { functionCall: { id: item.callId, name: item.name, args } });
++        this.addPart(contents, "model", {
++          functionCall: { id: item.callId, name: item.name, args },
++          ...item.thoughtSignature !== void 0 ? { thoughtSignature: item.thoughtSignature } : {}
++        });
+         continue;
+       }
+       if (item instanceof FunctionCallOutputItem) {
+@@ -1526,7 +1530,8 @@ var GeminiGenerateContentMapper = class {
+           FunctionCallItem.rehydrate({
+             callId: (_e = part.functionCall.id) != null ? _e : "",
+             name: part.functionCall.name,
+-            args: JSON.stringify((_f = part.functionCall.args) != null ? _f : {})
++            args: JSON.stringify((_f = part.functionCall.args) != null ? _f : {}),
++            ...part.thoughtSignature !== void 0 ? { thoughtSignature: part.thoughtSignature } : {}
+           })
+         );
+       }
+diff --git a/node_modules/@mozaik-ai/core/dist/index.mjs b/node_modules/@mozaik-ai/core/dist/index.mjs
+index 3151a2d..95d4a59 100644
+--- a/node_modules/@mozaik-ai/core/dist/index.mjs
++++ b/node_modules/@mozaik-ai/core/dist/index.mjs
+@@ -114,15 +114,16 @@ var ModelMessageItem = class _ModelMessageItem extends ContextItem {
+ 
+ // src/domain/model-context/context-item/model-item/function-call.ts
+ var FunctionCallItem = class _FunctionCallItem extends ContextItem {
+-  constructor(callId, name, args) {
++  constructor(callId, name, args, thoughtSignature) {
+     super();
+     this.type = "function_call";
+     this.callId = callId;
+     this.name = name;
+     this.args = args;
++    if (thoughtSignature !== void 0) this.thoughtSignature = thoughtSignature;
+   }
+   static rehydrate(data) {
+-    return new _FunctionCallItem(data.callId, data.name, data.args);
++    return new _FunctionCallItem(data.callId, data.name, data.args, data.thoughtSignature);
+   }
+ };
+ 
+@@ -1390,7 +1391,10 @@ var GeminiGenerateContentMapper = class {
+         } catch (e) {
+           args = {};
+         }
+-        this.addPart(contents, "model", { functionCall: { id: item.callId, name: item.name, args } });
++        this.addPart(contents, "model", {
++          functionCall: { id: item.callId, name: item.name, args },
++          ...item.thoughtSignature !== void 0 ? { thoughtSignature: item.thoughtSignature } : {}
++        });
+         continue;
+       }
+       if (item instanceof FunctionCallOutputItem) {
+@@ -1462,7 +1466,8 @@ var GeminiGenerateContentMapper = class {
+           FunctionCallItem.rehydrate({
+             callId: (_e = part.functionCall.id) != null ? _e : "",
+             name: part.functionCall.name,
+-            args: JSON.stringify((_f = part.functionCall.args) != null ? _f : {})
++            args: JSON.stringify((_f = part.functionCall.args) != null ? _f : {}),
++            ...part.thoughtSignature !== void 0 ? { thoughtSignature: part.thoughtSignature } : {}
+           })
+         );
+       }

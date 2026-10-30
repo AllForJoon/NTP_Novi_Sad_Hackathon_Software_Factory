@@ -2,6 +2,10 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { redact } from '../tools/commands.js';
 import type { EngineeringState } from '../state.js';
+
+function omitOpaqueSignature(key: string, value: unknown): unknown {
+  return key === 'thoughtSignature' || key === 'thought_signature' ? '[REDACTED]' : value;
+}
 export interface TraceRecord {
   timestamp: string; runId: string; participant: string; role: string;
   ticketId: string | null; event: string; phase: 'start' | 'end' | 'instant'; elapsedMs: number | null;
@@ -25,7 +29,7 @@ export class TraceObserver {
       tokenUsage: null, estimatedCostUsd: null, humanInterventionCount: this.state.humanInterventions.length,
       detail: null, ...input,
     };
-    const clean = JSON.parse(redact(JSON.stringify(record))) as TraceRecord;
+    const clean = JSON.parse(redact(JSON.stringify(record, omitOpaqueSignature))) as TraceRecord;
     this.records.push(clean);
     appendFileSync(resolve(this.directory, 'events.jsonl'), JSON.stringify(clean) + '\n');
     const elapsed = ((Date.now() - this.startedAt) / 1000).toFixed(2).padStart(7);
@@ -34,6 +38,6 @@ export class TraceObserver {
     if (!this.quiet) process.stdout.write(line);
   }
   checkpoint(): void {
-    writeFileSync(resolve(this.directory, 'state.json'), redact(JSON.stringify(this.state.snapshot(), null, 2)) + '\n');
+    writeFileSync(resolve(this.directory, 'state.json'), redact(JSON.stringify(this.state.snapshot(), omitOpaqueSignature, 2)) + '\n');
   }
 }

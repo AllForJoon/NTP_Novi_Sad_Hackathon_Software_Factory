@@ -2,7 +2,7 @@
 
 Validated locally on 2026-10-30, Windows, Node v22.14.0, npm 10.9.2.
 
-This opening record describes the initial implementation. Subsequent planning-repair and schema-compatibility verification records are included below.
+This opening record describes the initial implementation. Subsequent planning-repair, schema-compatibility and Gemini tool-signature verification records are included below.
 
 ## Starting point and delivered files
 
@@ -187,3 +187,67 @@ npm run factory -- ./specs/examples/sum-cli.md
 ```
 
 Existing per-role model overrides still take precedence. The final local tests establish schema projection and validation behavior, not a claim that the remote provider has accepted a new live request; that is the purpose of the command above.
+
+## Gemini tool-signature follow-up
+
+Implemented `../codex_4th.md` against the current pinned Mozaik 4.2.0 runtime. No replacement orchestration or provider harness was introduced.
+
+### Exact inspected root cause
+
+The actual installed representation is `FunctionCallItem`, not the conceptual `ToolUseRequest`. Its constructor/rehydrate path accepted only callId, name and args. `GeminiGenerateContentMapper.toResponse()` discarded `part.thoughtSignature` while creating this item. `toRequest()` subsequently rebuilt a model functionCall part from only id/name/args. This lost the signature required when the next Gemini request replayed the call.
+
+Inspection also confirmed `FunctionCallToInferenceRule` appends the same call object and tool output directly into `ModelContext`, and ModelContext retains those items. Therefore the small persistent adapter/context patch was sufficient; an alternate inference adapter was unnecessary.
+
+### Changed files and persistence
+
+- `patches/@mozaik-ai+core+4.2.0.patch`: adds optional `FunctionCallItem.thoughtSignature`, response copying and request replay in `dist/index.js`, `dist/index.mjs`, `dist/index.d.ts` and `dist/index.d.mts`.
+- `package.json` / `package-lock.json`: pin `patch-package@8.0.1` and run `patch-package --error-on-fail` in postinstall.
+- `.gitattributes`: force LF for patch files across Windows/Linux checkouts.
+- `src/tracing/observer.ts`: recursively redact camelCase and snake_case opaque signature fields when serializing traces and state diagnostics.
+- `tests/gemini-signature.test.ts`: eleven deterministic regression cases.
+- `patches/README.md`, `README.md` and this report: patch maintenance, privacy, evidence and next live command.
+
+The exact provider string is stored on its corresponding FunctionCallItem; there is no shared lookup table keyed only by tool name or call ID. Rehydration accepts the same optional field. Gemini replay attaches it to that call's model Part without decoding, trimming, regenerating or replacing it. Calls without a signature remain unsigned and keep their existing own-property shape. No thinking setting or model configuration was changed.
+
+Normal `npm ci` replaces dependencies with the original packages, then automatically reapplies the checked-in diff. The verification below actually printed `@mozaik-ai/core@4.2.0 ✔` from postinstall after a clean reinstall. No manual dependency editing is required after clone. A patch failure stops installation. Installs explicitly using `--ignore-scripts` must run `npm run postinstall` separately.
+
+The pre-existing HTTP-400 non-retryable classification remains unchanged and its regressions still pass. Unknown/transient network failures and 429/5xx retain bounded retries. Signatures do not enter ordinary event payloads; defensive observer serialization also removes them from nested diagnostics/state without changing the actual in-memory item. Mozaik's optional cloud payload redaction remains `all`.
+
+### Regression evidence
+
+The new tests cover both CJS and ESM runtime bundles:
+
+1. Gemini response mapping retains the opaque value.
+2. FunctionCallItem JSON serialization/explicit rehydration and ModelContext/history preserve it.
+3. Two contexts using the same call ID retain separate signatures.
+4. Absent signatures stay absent; opaque empty values are not silently rewritten.
+5. Actual runLoop + bounded runner executes two sequential tool calls, then the next mapper request contains each original signed functionCall Part unchanged and the matching tool results.
+6. The same metadata-bearing call objects are present in the real loop context.
+7. OpenAI Responses, OpenAI Chat Completions and Anthropic requests are identical with or without Gemini metadata.
+8. Event/state redaction does not mutate the original values.
+9. The full factory completes with signed scripted Gemini calls and actual generated-project CI, without leaking fixture signatures into JSONL, activity logs or state snapshots.
+
+All signature values in tests are explicit local fixtures. Tests do not create a real Gemini client or send synthetic signatures to a provider.
+
+Final commands executed on 2026-10-30:
+
+| Exact command | Result |
+| --- | --- |
+| `npm ci` | Passed; postinstall automatically applied the four-file Mozaik patch; 0 reported vulnerabilities |
+| `npm run typecheck` | Passed with the patched public declaration types |
+| `npm run build` | Passed |
+| `npm test` | **54 passed, 0 failed, 0 skipped** |
+| `npm run smoke` | COMPLETED on first CI attempt |
+| `npm run smoke:recovery` | COMPLETED after actual QA failure, generated repair and a second CI attempt |
+| `node --import tsx --test tests/gemini-signature.test.ts` | **11 passed, 0 failed** in the focused regression run |
+
+Smoke evidence remains locally in `traces/2026-10-30T11-50-47-452Z-c319b443` and `traces/2026-10-30T11-50-52-019Z-e17ac3e6`. The original Product Contract/plan validators, factory orchestration and provider retry implementation were not modified by this follow-up.
+
+Next real Gemini test, from the repository root in a PowerShell session with `GEMINI_API_KEY` already configured:
+
+```powershell
+$env:FACTORY_MODEL = 'gemini-3.5-flash-lite'
+npm run factory -- ./specs/examples/sum-cli.md
+```
+
+Role-specific model overrides still take precedence. No real provider-backed run is claimed for this implementation turn; local tests exercise the patched mapper, real Mozaik loops and real deterministic CI.

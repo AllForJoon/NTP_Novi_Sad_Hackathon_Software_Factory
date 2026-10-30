@@ -14,6 +14,8 @@ Requires **Node.js 22+** and npm. Run commands from the repository root.
 npm ci
 ```
 
+Normal `npm install` / `npm ci` automatically applies the version-pinned Mozaik compatibility patch through `postinstall`. Keep `patches/` in the checkout. Patch failure stops installation; `--ignore-scripts` deliberately skips it (run `npm run postinstall` before using the factory in that case).
+
 Copy `.env.example` to `.env` and set the provider key for the models you use. One provider/key and a shared model are enough. The default is `gpt-5.4-mini` from the pinned Mozaik registry.
 
 ```sh
@@ -131,9 +133,19 @@ Provider failures have a separate small retry budget and never create semantic b
 
 The generic projection preserves useful JSON Schema structure and references. Gemini model names select a narrower legacy profile because Mozaik 4.2.0 sends structured output through `responseSchema`; JSON-Schema-only fields such as `additionalProperties` and `$ref` are omitted there. This distinction follows the [Google generation configuration reference](https://ai.google.dev/api/generate-content#v1beta.GenerationConfig). Current role schemas use objects, arrays, enums and primitives, not references or tuples; future reference/tuple schemas need a corresponding legacy conversion or a JSON-Schema-capable transport. Tools use the generic projection because Mozaik sends their parameters through `parametersJsonSchema`.
 
-This changes only provider guidance. Every returned answer still goes through the original `turn.schema.parse`, `parseContract`/`parsePlan`, and review checks; each tool invocation still runs its original Zod parser. Empty summaries, invalid IDs, excessive string lengths, unexpected keys and semantic DAG/concurrency violations are still rejected locally. No dependency or `node_modules` patch is required.
+This changes only provider guidance. Every returned answer still goes through the original `turn.schema.parse`, `parseContract`/`parsePlan`, and review checks; each tool invocation still runs its original Zod parser. Empty summaries, invalid IDs, excessive string lengths, unexpected keys and semantic DAG/concurrency violations are still rejected locally. Schema projection itself needs no dependency patch; the Gemini tool-loop fix below is separate.
 
 When a provider exposes a numeric HTTP status, a 400 failure is marked non-retryable. HTTP 429/5xx and failures without a known permanent status retain bounded provider retries. Only the redacted message, safe numeric status and retry decision are recorded; raw provider error objects are not logged.
+
+### Gemini tool-loop thought signatures
+
+Mozaik 4.2.0's Gemini mapper dropped `Part.thoughtSignature` when producing a `FunctionCallItem`, then reconstructed subsequent function-call history without it. The actual runtime appends the call object directly to `ModelContext`, so a small adapter/context patch fixes the missing metadata without changing orchestration.
+
+`patches/@mozaik-ai+core+4.2.0.patch` adds optional `FunctionCallItem.thoughtSignature`, copies the provider string on response mapping/rehydration and places the same string on the corresponding Gemini `functionCall` part during request replay. The patch covers CommonJS, ESM and both declaration files. There is no global signature cache, no decoding/transformation, no placeholder signature, no disabled thinking and no replacement runtime. See Google's [legacy thinking guidance](https://ai.google.dev/gemini-api/docs/generate-content/thinking) for the provider requirement.
+
+The signature travels with its own call in memory, including across sequential tools and explicit item rehydration. OpenAI and Anthropic mappers ignore this Gemini-only metadata. Normal factory traces do not serialize agent memory; additionally, the observer redacts `thoughtSignature` / `thought_signature` fields recursively in diagnostic events and state snapshots without changing the original context. Optional presence flags can be logged; opaque values must not be logged.
+
+`patch-package@8.0.1` is a pinned runtime installation dependency and `postinstall` reapplies the patch with `--error-on-fail` after every normal install. A fresh `npm ci` replaces the original dependency then applies this checked-in diff automatically. If Mozaik is upgraded, check whether upstream fixed the mapper and update/remove the patch intentionally; do not silently reuse the old-version patch. [Patch maintenance notes](patches/README.md) describe the exact scope.
 
 ### Trace and metrics
 
