@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.work/
+output/
+traces/
+coverage/
+*.log
