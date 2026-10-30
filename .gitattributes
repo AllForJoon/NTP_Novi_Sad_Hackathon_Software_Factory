@@ -1,1 +1,1 @@
-patches/*.patch text eol=lf whitespace=-blank-at-eol
+* text=auto eol=lf

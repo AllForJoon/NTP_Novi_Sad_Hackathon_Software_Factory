@@ -11,9 +11,10 @@ import {
   ContractSchema, PlanSchema, ReviewSchema, WorkerAnswerSchema, parseContract, parsePlan,
   type EngineeringTicket, type Role, type Owner, type ReviewVerdict,
 } from '../schemas.js';
-import { EngineeringState, moveTicket, retryTicket, type ArtifactRecord, type FailureRecord, type VerificationResult } from '../state.js';
+import { EngineeringState, moveTicket, retryTicket, type ArtifactRecord, type CommandResult, type FailureRecord, type VerificationResult } from '../state.js';
 import { on, OnEvent } from '../runtime/situations.js';
 import { BoundedRunner, defaultRunner } from '../runtime/inference.js';
+import { JigJoyInferenceRunner } from '../runtime/jigjoy.js';
 import { inferenceJsonSchema } from '../runtime/inference-schema.js';
 import { contractInvariants, instructions, planInvariants } from '../participants/prompts.js';
 import { TraceObserver } from '../tracing/observer.js';
@@ -44,17 +45,25 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
   const runId = options.runId ?? `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`;
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(runId)) throw new Error('Unsafe run ID');
   const root = resolve(options.root), toolchain = resolve(options.toolchainRoot ?? root);
+  const executionEnvironment = { platform: process.platform, nodeVersion: process.version, moduleSystem: 'NodeNext ESM', entrypoint: 'src/index.ts', httpStartup: 'HTTP applications must export an unstarted createServer() and start on PORT when executed directly. Direct-execution guards must convert filesystem paths with node:url pathToFileURL; concatenated file URLs are not portable.' };
   const work = safePath(root, `.work/${runId}`), output = safePath(root, `output/${runId}`);
   if (existsSync(work) || existsSync(output) || existsSync(safePath(root, `traces/${runId}`))) throw new Error('Run ID already exists; refusing to overwrite output');
   mkdirSync(work, { recursive: true });
   const state = new EngineeringState(runId, options.spec);
   const trace = new TraceObserver(root, state, options.quiet);
   const api = defineRuntime<EngineeringState>();
-  api.initializeRuntime({ state, inferenceRunnerConfig: { runner: new BoundedRunner(options.runner ?? defaultRunner(), config.modelTimeoutMs, config.maxModelCalls, () => !state.terminal) } });
+  api.initializeRuntime({ state, inferenceRunnerConfig: { runner: new BoundedRunner(options.runner ?? (config.provider === 'jigjoy' ? new JigJoyInferenceRunner({ timeoutMs: config.modelTimeoutMs - Math.min(1000, config.modelTimeoutMs / 10) }) : defaultRunner()), config.modelTimeoutMs, config.maxModelCalls, () => !state.terminal, {
+    maxRetries: config.maxProviderRetries,
+    onRetry: event => {
+      const entry = [...pending.entries()].find(([, turn]) => turn.contextId === event.contextId);
+      trace.record({ role: entry?.[0] ?? 'runtime', participant: entry ? actors.get(entry[0])!.getId() : 'runtime', ticketId: entry?.[1].ticket?.id ?? null, model: event.model, event: 'provider.retry_scheduled', retry: event.retry, detail: { delayMs: event.delayMs, statusCode: event.statusCode, message: event.message } });
+    },
+  }) } });
   const actors = new Map<Role, Agent>();
   const rolesById = new Map<string, string>();
   const pending = new Map<Role, PendingTurn>();
   const reviews: ReviewJob[] = [];
+  const candidateChecks = new Map<string, CommandResult[]>();
   let reviewing = false, bugCounter = 0, timer: NodeJS.Timeout;
   let settle!: (result: FactoryResult) => void;
   const completed = new Promise<FactoryResult>(resolveResult => { settle = resolveResult; });
@@ -89,7 +98,8 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
     trace.record({ role, participant: actor.getId(), event: 'turn.started', phase: 'start', ticketId: turn.ticket?.id ?? null, retry: turn.retry, model: modelFor(role) });
     state.activeTurns.set(role, { startedAt: turn.startedAt, retry: turn.retry, ...(turn.ticket ? { ticketId: turn.ticket.id } : {}) });
     api.runLoop(actor.getId(), JSON.stringify({ role, ...turn.task }), {
-      model: modelFor(role), context, tools: turn.tools, maxOutputTokens: 12000,
+      model: modelFor(role), context, tools: turn.tools, maxOutputTokens: config.maxOutputTokens,
+      ...(config.reasoningEffort ? { reasoningEffort: config.reasoningEffort } : {}),
       structuredOutput: { name: role.replaceAll('-', '_'), schema: inferenceJsonSchema(turn.schema, modelFor(role)), strict: true },
     });
   };
@@ -101,8 +111,8 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
     });
   };
 
-  const askPlanning = async <T>(
-    role: 'pm' | 'tech-lead', kind: 'contract' | 'plan', initialTask: Record<string, unknown>,
+  const askValidated = async <T>(
+    role: 'pm' | 'tech-lead' | 'reviewer', kind: 'contract' | 'plan' | 'review', initialTask: Record<string, unknown>,
     schema: z.ZodType, validate: (value: unknown) => T, invariants: readonly string[],
   ): Promise<T> => {
     let task: Record<string, unknown> = { ...initialTask, invariants };
@@ -124,7 +134,7 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
           task: `repair-${kind}`,
           retryIndex: retry + 1,
           instruction: `Repair only the invalid ${kind} constraints identified by validationError. Preserve the valid parts and original requirements. Return the complete corrected ${kind} in the same schema. All listed invariants remain non-negotiable.`,
-          [kind === 'contract' ? 'previousInvalidContract' : 'previousInvalidPlan']: candidate,
+          [kind === 'contract' ? 'previousInvalidContract' : kind === 'plan' ? 'previousInvalidPlan' : 'previousInvalidReview']: candidate,
           validationError,
         };
         emit(`${kind}.repair_requested`, actors.get(role)!.getId(), { ...evidence, retry: retry + 1, attempt: retry + 2 });
@@ -140,7 +150,11 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
       const turn = pending.get(role as Role);
       const payload = event.payload as any;
       if (event.type === 'message_received.started' && turn && payload.input?.context?.id === turn.contextId) turn.loopId = payload.loopId;
-      if (event.type === 'inference.completed' && turn?.loopId === payload.loopId) {
+      if (event.type === 'inference.completed' && turn && turn.loopId === payload.loopId) {
+        if (payload.rowResponse?.__factorySubmission === true) {
+          trace.record({ role, participant: event.producerId, event: 'worker.submission_completed', ticketId: turn.ticket?.id ?? null });
+          return; // Deterministic handoff consumes no provider call or tokens.
+        }
         state.metrics.modelCalls++;
         const usage = payload.tokenUsage;
         if (usage) {
@@ -172,10 +186,10 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
     try { value = JSON.parse(payload.answer.content.text); }
     catch { throw new Error(`Invalid JSON from ${role}`); }
     if (value.__factoryFault) {
-      const { category, message, statusCode, retryable } = value.__factoryFault;
+      const { category, message, statusCode, retryable, retriesHandled } = value.__factoryFault;
       state.failures.push({ timestamp: new Date().toISOString(), category, message, ...(turn.ticket ? { ticketId: turn.ticket.id } : {}) });
       trace.record({ role, event: `${category}.failed`, detail: { message, ...(category === 'provider' ? { statusCode: statusCode ?? null, retryable: retryable !== false } : {}) }, retry: turn.retry });
-      if (category === 'provider' && retryable !== false && turn.retry < config.maxProviderRetries) { turn.retry++; launch(role, turn); return; }
+      if (category === 'provider' && !retriesHandled && retryable !== false && turn.retry < config.maxProviderRetries) { turn.retry++; launch(role, turn); return; }
       pending.delete(role); state.activeTurns.delete(role);
       turn.reject(new Error(`${category}: ${message}`)); fail(new Error(message), category, turn.ticket?.id); return;
     }
@@ -211,6 +225,7 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
   const readArtifacts = (artifacts: ArtifactRecord[]): Record<string, string> => Object.fromEntries(artifacts.map(a => [a.file, readFileSync(a.path, 'utf8')]));
 
   const workTicket = async (owner: Owner, ticket: EngineeringTicket): Promise<void> => {
+    candidateChecks.set(ticket.id, []);
     const workspace = safePath(work, `${owner}/${ticket.id}/attempt-${ticket.retryCount}`);
     scaffold(workspace, toolchain);
     integrateArtifacts(workspace, accepted());
@@ -219,15 +234,23 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
     for (const artifact of prior) own.set(artifact.file, artifact);
     integrateArtifacts(workspace, [...own.values()]);
     const tools = workerTools({ workspace, ticket, toolchain, timeoutMs: config.commandTimeoutMs,
+      expectedProductionFiles: state.engineeringPlan!.tickets.flatMap(t => t.ownedFiles),
       active: () => !state.terminal && state.activeTurns.get(owner)?.ticketId === ticket.id,
-      record: (event, detail) => trace.record({ role: owner, event, ticketId: ticket.id, retry: ticket.retryCount, detail }),
+      record: (event, detail) => {
+        if (event === 'write_file') candidateChecks.set(ticket.id, []);
+        if ((event === 'run_check' || event === 'check.build_completed') && detail && typeof detail === 'object' && 'command' in detail)
+          candidateChecks.get(ticket.id)!.push(detail as CommandResult);
+        trace.record({ role: owner, event, ticketId: ticket.id, retry: ticket.retryCount, detail });
+      },
     });
     if (owner === 'qa') emit('qa.started', actors.get(owner)!.getId(), { ticketId: ticket.id });
     await ask(owner, {
       task: ticket.parentTicketId || ticket.retryCount ? 'repair' : 'implement',
       contract: state.productContract, plan: state.engineeringPlan, ticket,
+      executionEnvironment,
       evidence: state.testResults.at(-1) ?? null,
       reviewFeedback: state.reviews.filter(r => r.ticketId === ticket.id || r.ticketId === ticket.parentTicketId || r.ticketId.startsWith('CI-')).slice(-3),
+      workspacePolicy: 'Your workspace is a fixed isolated snapshot. Other workers are genuinely concurrent, so their unfinished files are normally absent and will not appear during this turn. Implement the exact published interfaces without stubs. Once all owned files are written, call finish_work with your summary; integration will compile and test the combined artifacts. Never write summary.json or any summary file. Initial QA must derive tests from the contract without attempting to fix missing production code.',
       availableFiles: owner === 'qa' && !ticket.parentTicketId ? ['package.json', 'tsconfig.json'] : accepted().map(a => a.file),
     }, WorkerAnswerSchema, ticket, tools);
     if (state.terminal) return;
@@ -252,13 +275,13 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
       }
     }
     for (const { source, files, descriptions } of groups.values()) {
-      if (source.retryCount >= config.maxRetries) { fail(new Error(`Retry limit reached for ${source.id}`), 'implementation', source.id); return; }
-      source.retryCount++;
+      if ((source.ciRetryCount ?? 0) >= config.maxRetries) { fail(new Error(`Retry limit reached for ${source.id}`), 'implementation', source.id); return; }
+      source.ciRetryCount = (source.ciRetryCount ?? 0) + 1;
       const bug: EngineeringTicket = {
         id: `BUG-${String(++bugCounter).padStart(3, '0')}`, title: `Repair ${source.title}`,
         description: descriptions.join('\n\n'), owner: source.owner, status: 'READY', dependencies: [],
         ownedFiles: [...files], acceptanceCriteria: source.acceptanceCriteria,
-        retryCount: source.retryCount, parentTicketId: source.id,
+        retryCount: 0, parentTicketId: source.id,
       };
       state.tickets.push(bug);
       emit('bug.created', actors.get('reviewer')!.getId(), { ticketId: bug.id, parentTicketId: source.id, owner: bug.owner, verificationAttempt: verification.attempt });
@@ -274,13 +297,38 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
         const job = reviews.shift()!;
         const ticket = job.ticket;
         const candidates = ticket ? state.artifacts.filter(a => a.ticketId === ticket.id && a.version === ticket.retryCount) : accepted();
-        const verdict = ReviewSchema.parse(await ask('reviewer', {
-          task: job.mode, ticketId: job.ticketId, ticket: ticket ?? null,
+        const verdict = await askValidated('reviewer', 'review', {
+          task: job.mode, reviewMode: job.mode, ticketId: job.ticketId, ticket: ticket ?? null,
           contract: state.productContract, plan: state.engineeringPlan,
+          executionEnvironment,
           ownership: state.tickets.filter(t => !t.parentTicketId).map(t => ({ id: t.id, owner: t.owner, files: t.ownedFiles })),
           artifacts: readArtifacts(candidates), previousArtifacts: ticket ? readArtifacts(accepted().filter(a => ticket.ownedFiles.includes(a.file))) : {},
-          verification: job.verification ?? state.testResults.at(-1) ?? null,
-        }, ReviewSchema));
+          dependencyArtifacts: ticket ? readArtifacts(accepted().filter(a => !ticket.ownedFiles.includes(a.file))) : {},
+          candidateChecks: ticket ? candidateChecks.get(ticket.id) ?? [] : [],
+          verification: job.verification ?? null,
+          previousVerification: job.mode === 'review' ? state.testResults.at(-1) ?? null : null,
+        }, ReviewSchema, value => {
+          const candidate = ReviewSchema.parse(value);
+          if (candidate.ticketId !== job.ticketId) throw new Error(`Reviewer must return ticketId ${job.ticketId}`);
+          if (candidate.verdict === 'approved' ? candidate.blockingIssues.length > 0 : candidate.blockingIssues.length === 0)
+            throw new Error('Approved verdicts require no blocking issues; changes_requested requires at least one');
+          if (job.mode === 'triage' && candidate.verdict !== 'changes_requested') throw new Error('Failed CI requires changes_requested triage');
+          for (const issue of candidate.blockingIssues) {
+            if (job.mode === 'review') {
+              if (!ticket || issue.likelyOwner !== ticket.owner || issue.files.some(file => !ticket.ownedFiles.includes(file)))
+                throw new Error(`Ordinary review of ${job.ticketId} may request repairs only from ${ticket?.owner} in ${ticket?.ownedFiles.join(', ')}. If current artifacts are correct and the failure belongs to another owner (including a wrong QA assertion), approve this ticket so integrated CI can triage that separate issue. Do not change correct production behavior to satisfy a test contradicting the contract.`);
+            } else for (const file of issue.files) {
+              const source = state.tickets.find(t => !t.parentTicketId && t.ownedFiles.includes(file));
+              if (!source || source.owner !== issue.likelyOwner) throw new Error(`Invalid triage ownership for ${file}`);
+            }
+          }
+          return candidate;
+        }, [
+          `Return the exact ticketId ${job.ticketId}.`,
+          'Approved means no blocking issues; changes_requested means at least one concrete blocking issue.',
+          job.mode === 'review' ? `Every blocking issue must belong to the current ticket owner ${ticket?.owner} and owned files ${ticket?.ownedFiles.join(', ')}. Other owners are handled by integrated CI triage, not by changing this ownership boundary.` : 'Triage every issue to the actual original owner and existing owned files; never approve failed CI.',
+          'Preserve the Product Contract and correct tests; QA may correct a demonstrably false assertion, never weaken tests to accept broken software.',
+        ]);
         if (state.terminal) return;
         if (verdict.ticketId !== job.ticketId || (verdict.verdict === 'approved' ? verdict.blockingIssues.length > 0 : verdict.blockingIssues.length === 0)) throw new Error('Reviewer returned inconsistent verdict');
         state.reviews.push(verdict);
@@ -317,11 +365,11 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
   const handlers: Record<Role, import('@mozaik-ai/core').SituationHandler[]> = {
     pm: [on(['spec.received'], async () => {
       state.status = 'PLANNING';
-      state.productContract = await askPlanning('pm', 'contract', { task: 'contract', specification: state.originalSpec }, ContractSchema, parseContract, contractInvariants);
+      state.productContract = await askValidated('pm', 'contract', { task: 'contract', specification: state.originalSpec }, ContractSchema, parseContract, contractInvariants);
       emit('contract.ready', actors.get('pm')!.getId());
     }, error => fail(error, 'protocol'))],
     'tech-lead': [on(['contract.ready'], async () => {
-      state.engineeringPlan = await askPlanning('tech-lead', 'plan', { task: 'plan', contract: state.productContract }, PlanSchema, value => parsePlan(value, state.productContract!), planInvariants);
+      state.engineeringPlan = await askValidated('tech-lead', 'plan', { task: 'plan', contract: state.productContract, executionEnvironment }, PlanSchema, value => parsePlan(value, state.productContract!), planInvariants);
       emit('plan.ready', actors.get('tech-lead')!.getId());
     }, error => fail(error, 'protocol'))],
     'developer-a': [on(['ticket.claimed'], event => {
@@ -351,7 +399,7 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
     const scaffoldHashes = new Map(['package.json', 'tsconfig.json'].map(file => [file, hashFile(safePath(output, file))]));
     emit('integration.completed', integrator.getId(), { attempt, files: accepted().map(a => a.file) });
     emit('verification.started', integrator.getId(), { attempt });
-    const verification = await verifyProject(output, toolchain, config.commandTimeoutMs, attempt, command => trace.record({ role: 'ci', event: 'command.completed', phase: 'end', elapsedMs: command.elapsedMs, detail: command }));
+    const verification = await verifyProject(output, toolchain, config.commandTimeoutMs, attempt, command => trace.record({ role: 'ci', event: 'command.completed', phase: 'end', elapsedMs: command.elapsedMs, detail: command }), state.productContract!.projectType === 'http-api');
     if (state.terminal) return;
     state.testResults.push(verification);
     if (verification.passed) {
@@ -381,7 +429,7 @@ export async function runFactory(options: FactoryOptions): Promise<FactoryResult
   }, fail)] });
   rolesById.set(integrator.getId(), 'ci'); api.join(integrator);
   timer = setTimeout(() => fail(new Error('Factory run deadline exceeded')), config.runTimeoutMs);
-  trace.record({ role: 'company', event: 'run.started', phase: 'start', detail: { mode: options.mode ?? 'live', models: Object.fromEntries((Object.keys(handlers) as Role[]).map(role => [role, modelFor(role)])) } });
+  trace.record({ role: 'company', event: 'run.started', phase: 'start', detail: { mode: options.mode ?? 'live', provider: config.provider, maxOutputTokens: config.maxOutputTokens, modelTimeoutMs: config.modelTimeoutMs, reasoningEffort: config.reasoningEffort ?? null, models: Object.fromEntries((Object.keys(handlers) as Role[]).map(role => [role, modelFor(role)])) } });
   emit('spec.received', board.getId(), { bytes: Buffer.byteLength(state.originalSpec) });
   return completed;
 }

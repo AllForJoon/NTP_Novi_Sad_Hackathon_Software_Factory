@@ -1,0 +1,17 @@
+[
+  {
+    "ticketId": "T1",
+    "verdict": "approved",
+    "blockingIssues": []
+  },
+  {
+    "ticketId": "T2",
+    "verdict": "approved",
+    "blockingIssues": []
+  },
+  {
+    "ticketId": "QA-001",
+    "verdict": "approved",
+    "blockingIssues": []
+  }
+]

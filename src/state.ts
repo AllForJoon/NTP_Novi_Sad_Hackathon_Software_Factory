@@ -52,7 +52,8 @@ export function moveTicket(ticket: EngineeringTicket, next: TicketStatus): void 
   ticket.status = next;
 }
 export function retryTicket(ticket: EngineeringTicket, limit: number): boolean {
-  if (ticket.retryCount >= limit) return false;
+  if ((ticket.reviewRetryCount ?? 0) >= limit) return false;
+  ticket.reviewRetryCount = (ticket.reviewRetryCount ?? 0) + 1;
   ticket.retryCount++;
   moveTicket(ticket, 'READY');
   return true;

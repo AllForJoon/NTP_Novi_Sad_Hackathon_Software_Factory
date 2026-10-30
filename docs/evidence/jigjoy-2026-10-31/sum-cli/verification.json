@@ -1,0 +1,34 @@
+[
+  {
+    "attempt": 1,
+    "passed": true,
+    "category": "passed",
+    "timestamp": "2026-10-30T22:35:34.869Z",
+    "commands": [
+      {
+        "check": "typecheck",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 677,
+        "timedOut": false,
+        "error": null
+      },
+      {
+        "check": "build",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 676,
+        "timedOut": false,
+        "error": null
+      },
+      {
+        "check": "test",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 1328,
+        "timedOut": false,
+        "error": null
+      }
+    ]
+  }
+]

@@ -1,0 +1,105 @@
+{
+  "projectType": "cli",
+  "requirements": [
+    {
+      "id": "R1",
+      "description": "Provide a TypeScript CLI command named `sum` invoked as `sum <a> <b>`."
+    },
+    {
+      "id": "R2",
+      "description": "For valid operands, compute the numerical sum, print it followed by a newline to stdout, and exit with code 0; support positive numbers, negative numbers, zero, and decimal numbers."
+    },
+    {
+      "id": "R3",
+      "description": "Require exactly two operands after the `sum` command."
+    },
+    {
+      "id": "R4",
+      "description": "Reject empty operands, whitespace-only operands, non-numeric operands, NaN, and Infinity."
+    },
+    {
+      "id": "R5",
+      "description": "For invalid input, missing or unknown command, or wrong number of operands, write a helpful error to stderr and return a non-zero exit code."
+    },
+    {
+      "id": "R6",
+      "description": "Use TypeScript and only Node.js built-in modules; do not depend on non-built-in runtime packages."
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC1",
+      "requirementIds": [
+        "R1",
+        "R2"
+      ],
+      "description": "Invoking `sum 1 2` prints exactly `3\\n` to stdout and exits with code 0."
+    },
+    {
+      "id": "AC2",
+      "requirementIds": [
+        "R2"
+      ],
+      "description": "Invoking `sum -2.5 0.5` prints exactly `-2\\n` to stdout and exits with code 0."
+    },
+    {
+      "id": "AC3",
+      "requirementIds": [
+        "R2"
+      ],
+      "description": "Invoking `sum 0 0` prints exactly `0\\n` and exits with code 0; invoking `sum 1.0 1` prints exactly `2\\n` and exits with code 0, confirming decimal input is evaluated numerically and emitted in normalized numeric output form."
+    },
+    {
+      "id": "AC4",
+      "requirementIds": [
+        "R3",
+        "R5"
+      ],
+      "description": "Invoking `sum 1` or `sum 1 2 3` exits with a non-zero code and writes a helpful error to stderr without printing a sum to stdout."
+    },
+    {
+      "id": "AC5",
+      "requirementIds": [
+        "R4",
+        "R5"
+      ],
+      "description": "Invoking with an empty operand such as `sum \"\" 2`, a whitespace-only operand such as `sum \"   \" 2`, a non-numeric operand such as `sum abc 2`, `sum NaN 2`, or `sum Infinity 2` exits with a non-zero code and writes a helpful error to stderr without printing a sum to stdout."
+    },
+    {
+      "id": "AC6",
+      "requirementIds": [
+        "R5"
+      ],
+      "description": "Invoking with no command or an unknown command such as `add 1 2` exits with a non-zero code and writes a helpful error to stderr without printing a sum to stdout."
+    },
+    {
+      "id": "AC7",
+      "requirementIds": [
+        "R6"
+      ],
+      "description": "The project is implemented in TypeScript and the runtime dependency/import check shows only Node.js built-in modules are used."
+    }
+  ],
+  "constraints": [
+    "CLI only; command form is `sum <a> <b>`.",
+    "Print the numerical sum followed by a newline on success.",
+    "Successful valid invocations exit with code 0.",
+    "Exactly two operands are required after `sum`.",
+    "Errors must be written to stderr and must return a non-zero exit code.",
+    "Use TypeScript and only Node.js built-in modules."
+  ],
+  "ambiguities": [
+    "The specification does not define whether surrounding whitespace around an otherwise numeric operand (for example `\" 1 \"`) is trimmed and accepted; only empty and whitespace-only operands are explicitly rejected.",
+    "The specification does not define exact accepted numeric literal syntax beyond positive numbers, negative numbers, zero, and decimal numbers, so forms such as exponent notation, leading `+`, leading zeros, or a trailing decimal point are not explicitly specified.",
+    "The exact wording and format of the helpful error message are not specified.",
+    "The exact formatting/rounding behavior for decimal sums is not specified beyond printing the numerical sum followed by a newline."
+  ],
+  "outOfScope": [
+    "HTTP API or web service endpoints.",
+    "GUI or interactive UI.",
+    "Expression parsing beyond exactly two sum operands.",
+    "Arbitrary-precision or non-Node-native numeric types.",
+    "Third-party runtime libraries or non-built-in dependencies.",
+    "Configuration files, persistent state, or localization."
+  ]
+}

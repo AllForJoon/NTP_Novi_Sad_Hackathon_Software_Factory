@@ -1,0 +1,170 @@
+{
+  "projectType": "cli",
+  "requirements": [
+    {
+      "id": "R1",
+      "description": "The CLI is invoked as `node dist/index.js stats <path>` and accepts exactly the command `stats` plus exactly one path argument."
+    },
+    {
+      "id": "R2",
+      "description": "On success, the CLI reads the UTF-8 text file at the given path and writes to stdout one JSON object followed by a newline, containing numeric fields `lines`, `words`, and `characters`, with no other stdout output."
+    },
+    {
+      "id": "R3",
+      "description": "`characters` counts Unicode code points in the file content, including whitespace and line-ending characters."
+    },
+    {
+      "id": "R4",
+      "description": "`words` counts maximal runs of non-whitespace characters."
+    },
+    {
+      "id": "R5",
+      "description": "`lines` counts LF-separated records: empty input has zero lines; a final LF terminates the last record without adding an extra line; CRLF also separates lines and both CR and LF count as characters; blank lines count as lines; an empty file succeeds with all zero counts."
+    },
+    {
+      "id": "R6",
+      "description": "Missing files, directory paths, invalid paths, an unrecognized command, and incorrect argument arity each produce a useful message on stderr, nothing on stdout, and a nonzero exit code."
+    },
+    {
+      "id": "R7",
+      "description": "Paths containing spaces are accepted and processed correctly."
+    },
+    {
+      "id": "R8",
+      "description": "The CLI is written in TypeScript and uses only Node.js built-in modules, with no networking, no third-party dependencies, no GUI, and no persistence beyond reading the given file."
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC1",
+      "requirementIds": [
+        "R1",
+        "R2"
+      ],
+      "description": "Running `node dist/index.js stats <existing-file>` exits with code 0 and stdout contains exactly one line of JSON with keys `lines`, `words`, `characters` and nothing else."
+    },
+    {
+      "id": "AC2",
+      "requirementIds": [
+        "R2"
+      ],
+      "description": "Each value in the emitted JSON object is a number, and the output line is terminated by a newline."
+    },
+    {
+      "id": "AC3",
+      "requirementIds": [
+        "R3"
+      ],
+      "description": "For a file containing multi-byte code points (e.g. an accented character or an emoji), `characters` equals the code point count, not the UTF-16 code unit count or byte count."
+    },
+    {
+      "id": "AC4",
+      "requirementIds": [
+        "R3"
+      ],
+      "description": "For a file containing spaces, tabs, and line endings, those characters are included in `characters`."
+    },
+    {
+      "id": "AC5",
+      "requirementIds": [
+        "R4"
+      ],
+      "description": "For input with multiple consecutive spaces, tabs, or newlines between tokens, each maximal non-whitespace run is counted once as a word and no empty words are produced."
+    },
+    {
+      "id": "AC6",
+      "requirementIds": [
+        "R5"
+      ],
+      "description": "For an empty file, the CLI exits 0 and prints `{\"lines\":0,\"words\":0,\"characters\":0}`."
+    },
+    {
+      "id": "AC7",
+      "requirementIds": [
+        "R5"
+      ],
+      "description": "Content `a\\nb` reports 2 lines, while `a\\nb\\n` also reports 2 lines because the final LF terminates the last record without adding an extra line."
+    },
+    {
+      "id": "AC8",
+      "requirementIds": [
+        "R5"
+      ],
+      "description": "For content `a\\r\\nb`, the CLI reports 2 lines and 5 characters, showing CRLF separates lines and both CR and LF are counted."
+    },
+    {
+      "id": "AC9",
+      "requirementIds": [
+        "R5"
+      ],
+      "description": "Content consisting only of blank lines (e.g. `\\n\\n`) reports the corresponding line count (2) rather than 0."
+    },
+    {
+      "id": "AC10",
+      "requirementIds": [
+        "R6"
+      ],
+      "description": "Passing a path that does not exist produces a non-empty stderr message, empty stdout, and a nonzero exit code."
+    },
+    {
+      "id": "AC11",
+      "requirementIds": [
+        "R6"
+      ],
+      "description": "Passing a path that is a directory produces a non-empty stderr message, empty stdout, and a nonzero exit code."
+    },
+    {
+      "id": "AC12",
+      "requirementIds": [
+        "R6"
+      ],
+      "description": "Passing an unrecognized command (e.g. `node dist/index.js foo <path>`) produces a non-empty stderr message, empty stdout, and a nonzero exit code."
+    },
+    {
+      "id": "AC13",
+      "requirementIds": [
+        "R6"
+      ],
+      "description": "Invoking with no path argument, or with more than one path argument, produces a non-empty stderr message, empty stdout, and a nonzero exit code."
+    },
+    {
+      "id": "AC14",
+      "requirementIds": [
+        "R7"
+      ],
+      "description": "A file located at a path containing spaces is processed successfully with exit code 0 and correct counts."
+    },
+    {
+      "id": "AC15",
+      "requirementIds": [
+        "R8"
+      ],
+      "description": "The project builds from TypeScript sources with no third-party runtime dependencies, and a run of the CLI performs no network access or file writes."
+    }
+  ],
+  "constraints": [
+    "Implemented in TypeScript, compiled so that `node dist/index.js` is the entry point.",
+    "Use Node.js built-in modules only; no third-party runtime dependencies.",
+    "No networking, no GUI, and no persistence beyond reading the specified file.",
+    "Exactly one supported command, `stats`, and exactly one path argument; no additional flags or commands.",
+    "On success, stdout must contain only the single JSON object plus a trailing newline; on failure, stdout must be empty.",
+    "Failures must exit with a nonzero code and write a useful message to stderr."
+  ],
+  "ambiguities": [
+    "Whether a lone CR not followed by LF starts a new line: assumed it does not separate lines but does count as a character.",
+    "Behavior on files that are not valid UTF-8: decoding/replacement policy is unspecified.",
+    "Whether a BOM at the start of the file is counted as a character: not specified.",
+    "Handling of grapheme clusters and combining marks: spec states code points, so clusters are counted as their constituent code points.",
+    "Exact nonzero exit code value is unspecified; any nonzero value is acceptable.",
+    "Whether JSON output must be compact single-line formatting or may include whitespace, as long as it is one JSON object followed by a newline.",
+    "Whether `dist/index.js` is expected to be prebuilt or produced by a documented build step."
+  ],
+  "outOfScope": [
+    "Stdin input, multiple file arguments, or recursive/batch file processing.",
+    "Encodings other than UTF-8 and explicit BOM handling.",
+    "Additional commands, subcommands, flags, or help/version output.",
+    "Word counting rules beyond maximal non-whitespace runs (e.g. punctuation handling, locale rules).",
+    "Networking, databases, caching, configuration files, or any persistence.",
+    "GUI, packaging/publishing, and platform-specific installers."
+  ]
+}

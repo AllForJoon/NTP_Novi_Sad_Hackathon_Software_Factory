@@ -25,6 +25,7 @@ export type EngineeringPlan = z.infer<typeof PlanSchema>;
 export type TicketStatus = 'BACKLOG' | 'READY' | 'IN_PROGRESS' | 'IN_REVIEW' | 'TESTING' | 'FAILED' | 'DONE';
 export type EngineeringTicket = Omit<z.infer<typeof TicketInputSchema>, 'owner'> & {
   owner: Owner; status: TicketStatus; retryCount: number; parentTicketId?: string;
+  reviewRetryCount?: number; ciRetryCount?: number;
 };
 export const ReviewSchema = z.object({
   ticketId: id, verdict: z.enum(['approved', 'changes_requested']),

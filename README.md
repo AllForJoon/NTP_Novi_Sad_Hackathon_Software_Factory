@@ -1,210 +1,137 @@
-# AI Software Company
+# Mozaik Software Factory
 
-A Markdown specification goes in. A small TypeScript CLI or HTTP API, with actual build and test evidence, comes out.
+[![Factory verification](https://github.com/AllForJoon/NTP_Novi_Sad_Hackathon_Software_Factory/actions/workflows/ci.yml/badge.svg)](https://github.com/AllForJoon/NTP_Novi_Sad_Hackathon_Software_Factory/actions/workflows/ci.yml)
 
-**Do not ask one AI to write software. Run an AI development organization.**
+**A Markdown specification becomes a verified TypeScript project through a concurrent AI engineering team.**
 
-Built for JigJoy NTP Novi Sad Hackathon 2026, Track 01: Software Factory. This repository started empty; this is its first working implementation.
+JigJoy NTP Novi Sad Hackathon 2026 · Track 01: Software Factory · Built on **Mozaik v4.2.0**.
 
-## Run it
+Product Manager, Tech Lead, two developers, independent QA and a read-only Reviewer work through Mozaik events and tool loops. A deterministic Integrator owns the final compiler, test and HTTP-startup gates. A model saying "done" cannot complete a project.
 
-Requires **Node.js 22+** and npm. Run commands from the repository root.
+**Start here:** [Submission guide](docs/SUBMISSION.md) · [Live evidence and generated projects](docs/evidence/jigjoy-2026-10-31/README.md) · [Architecture](docs/ARCHITECTURE.md) · [Hosted inference investigation](docs/JIGJOY_HOSTED.md)
+
+## Verified live results
+
+These are actual JigJoy-hosted runs, **without demo flags**, recorded on 2026-10-31 KST. Generated QA and a separate acceptance checker both exercised the built projects.
+
+| Specification | Factory result | Generated QA tests | Independent checks |
+| --- | --- | ---: | ---: |
+| [Sum CLI](specs/examples/sum-cli.md) | COMPLETED | 25 | 15 |
+| [Notes HTTP API](specs/examples/notes-api.md) | COMPLETED | 10 | 16 |
+| [UTF-8 file statistics CLI](specs/validation/file-counts.md) | COMPLETED | 16 | 15 |
+| [Task HTTP API](specs/validation/tasks-api.md) | COMPLETED | 21 | 22 |
+
+The last two specifications were unseen when first executed; their exact inputs are now committed for reproduction. [Recorded timestamps](docs/evidence/jigjoy-2026-10-31/manifest.json) establish real overlap among Developer A, Developer B and QA in all four runs. The file-statistics run also completed an automatic Reviewer → QA revision → recheck cycle.
+
+## Run a real Factory
+
+Requires **Node.js 22+**, npm, and a JigJoy account with hosted inference access. From the repository root:
 
 ```sh
 npm ci
-```
-
-Normal `npm install` / `npm ci` automatically applies the version-pinned Mozaik compatibility patch through `postinstall`. Keep `patches/` in the checkout. Patch failure stops installation; `--ignore-scripts` deliberately skips it (run `npm run postinstall` before using the factory in that case).
-
-Copy `.env.example` to `.env` and set the provider key for the models you use. One provider/key and a shared model are enough. The default is `gpt-5.4-mini` from the pinned Mozaik registry.
-
-```sh
+cp .env.example .env
+npm install -g baro-ai@0.121.0
+baro login
 npm run factory -- ./specs/examples/sum-cli.md
 ```
 
-For an HTTP API example:
+`cp` also works as the PowerShell `Copy-Item` alias. Keep an existing private `.env` instead of overwriting it. Normal `npm ci` applies the checked-in Mozaik compatibility patch automatically.
+
+The supplied configuration selects:
+
+```dotenv
+FACTORY_PROVIDER=jigjoy
+FACTORY_MODEL=deepseek-flash
+FACTORY_REASONING_EFFORT=low
+```
+
+**JigJoy mode requires no OpenAI, Anthropic or Gemini API key.** The official Baro helper exchanges the local login session for a short-lived gateway credential; the runner keeps it in memory. Mozaik Cloud pairing is separate and continues exporting redacted telemetry if already paired. Account credits and service limits still apply; Pro membership alone is not a promise of unlimited inference.
+
+For the HTTP example:
 
 ```sh
 npm run factory -- ./specs/examples/notes-api.md
 ```
 
-The command exits with code 0 **only** after reviewer acceptance and deterministic typecheck, build and tests succeed. An invalid spec, exhausted repair budget, provider outage or infrastructure failure exits nonzero. Do not edit generated projects during a run.
+Success ends with `COMPLETED` and exit code 0. Inspect `output/<run-id>/` for the project and verification record, and `traces/<run-id>/` for timestamped events and state. CLI projects must pass typecheck, build and QA tests; HTTP projects must additionally start a real server and answer an HTTP request. Generated projects use Node built-ins only.
 
-No API key? Reproduce the full local runtime with the bundled fixture:
-
-```sh
-npm run smoke
-npm run smoke:recovery
-```
-
-These two commands use **scripted responses, not an LLM**. They exercise the same Mozaik runtime, actual tool calls, three concurrent worker loops, filesystem isolation, reviewers, compiler and Node test processes. The recovery fixture deliberately omits empty-string validation in its first candidate. QA's real tests fail, a real bug ticket wakes Developer B, and CI runs again. Offline CLI mode only accepts the exact bundled Sum CLI spec; it does not pretend to generate arbitrary software without a model.
-
-## The organization
-
-| Participant | Objective and context | Tools and authority | Trigger / output |
-| --- | --- | --- | --- |
-| Product Manager | Extract observable requirements from the original spec | No coding, filesystem or shell tools | `spec.received` → strict Product Contract |
-| Tech Lead | Choose minimal architecture, exact interfaces, file ownership and ticket DAG | No coding or execution tools | `contract.ready` → strict Engineering Plan |
-| Developer A | Functional behavior, simple implementation, fast delivery; contract + assigned ticket + interfaces | Read/list/search candidate; write assigned production files; bounded checks | Own `ticket.claimed` → isolated source artifacts |
-| Developer B | Validation, boundary cases, error handling and maintainability; reliability ticket and failure evidence | Same bounded tool vocabulary, different owned files and priorities | Own `ticket.claimed` → isolated reliability artifacts |
-| QA | Try to break the contract; initially contract + published interfaces, without implementation assumptions | Write only `tests/contract.test.mjs`; cannot edit production | Own `ticket.claimed` → adversarial Node tests |
-| Reviewer | Critique artifacts and evidence; classify CI failures and route fixes | Read-only structured inputs, no editing or execution tools | `review.requested` → strict verdict / blocking issues |
-| Project Board | Track dependencies, ownership and availability | Deterministic state transitions and scheduling | Plan/rework events → claims for READY work |
-| Integrator / CI | Assemble accepted artifacts and determine actual success | Fixed Node/compiler commands, real exit codes | `integration.requested` → verification evidence |
-| Trace Observer | Record actual activity and metrics | Deterministic JSONL/log/state writer | Runtime and company events → local trace |
-
-The six AI roles differ in instructions, context, triggers, schemas, evaluation criteria and write authority. All can share a model; role-specific model overrides are optional. PM never receives source tools; QA cannot fix production; the Reviewer cannot fix anything. Coding tools are scoped to the current ticket at turn creation. Each turn uses a fresh `ModelContext` with explicit relevant inputs rather than inheriting every other participant's conversation.
-
-## Mozaik v4 architecture
-
-The pinned dependency is **`@mozaik-ai/core@4.2.0`**. The implementation uses current public `defineRuntime`, `RuntimeState`, `createAgent`, `createHuman`, `SemanticEvent`, `SituationSpecification`, situation processors, and `runLoop` APIs. There is no legacy Baro wiring or alternative event bus. See the official [runtime documentation](https://docs.jigjoy.ai/docs/runtime) and [agent loop](https://docs.jigjoy.ai/docs/agent-loop).
-
-```mermaid
-flowchart TD
-  Spec[spec.md] --> PM[Product Manager]
-  PM -->|contract.ready| Lead[Tech Lead]
-  Lead -->|plan.ready| Board[Shared Project Board / Ticket DAG]
-  Board -->|ticket.claimed| A[Developer A]
-  Board -->|ticket.claimed| B[Developer B]
-  Board -->|ticket.claimed| QA[Adversarial QA]
-  A -->|candidate| Review[Read-only Reviewer]
-  B -->|candidate| Review
-  QA -->|tests| Review
-  Review -->|changes requested| Board
-  Review -->|approved artifacts| CI[Deterministic Integrator / CI]
-  CI -->|verification failed + evidence| Review
-  Review -->|classified bug / rework| Board
-  CI -->|typecheck + build + tests passed| Output[Verified TypeScript Project]
-  Board -.-> Trace[Trace Observer]
-  CI -.-> Trace
-  Review -.-> Trace
-```
-
-`EngineeringState extends RuntimeState` is the project board: original spec, Product Contract, plan, ticket statuses and retry counts, artifact hashes, review verdicts, command/test results, categorized failures, metrics and explicit human interventions. A snapshot is persisted at milestones and on termination.
-
-The board reacts to events rather than awaiting a fixed sequence of developers. It starts one READY ticket per available owner. Approved dependency artifacts unlock dependent tickets. Development tickets move through `BACKLOG → READY → IN_PROGRESS → IN_REVIEW → TESTING → DONE`, with bounded `FAILED → READY` review repair. `TESTING` means reviewer accepted, waiting for the final global gate; it does not mean tests have passed. Only CI can authorize project completion.
-
-Events include `spec.received`, `contract.ready`, `plan.ready`, `ticket.claimed`, `ticket.completed`, `qa.started`, `qa.completed`, `review.requested`, `review.approved`, `review.changes_requested`, `integration.requested`, `integration.completed`, `verification.started`, `verification.failed`, `verification.passed`, `bug.created`, `rework.requested` and terminal project events.
-
-### Contract and plan self-repair
-
-A schema-valid model response can still violate semantic rules. For example, a plan that makes Developer B depend on Developer A is rejected by the concurrency validator. Instead of immediately ending the run, the factory sends the **same PM or Tech Lead participant** its previous invalid output, the exact redacted validation error, original specification or Product Contract, and explicit non-negotiable invariants. That agent produces a complete corrected response, and the unchanged semantic validator runs again. The factory never fabricates extra tickets or relaxes the independent-developer requirement.
-
-`MAX_PLANNING_RETRIES=2` permits the initial response plus at most two semantic repairs **per planning role**. Zero disables repairs. This budget is separate from provider retries and code/CI repairs. Exhaustion terminates with a clear protocol failure naming the phase, attempt count and last validation error. Basic JSON/schema errors keep their existing protocol-failure path; they are not treated as semantic planning mistakes.
-
-The real events `contract.validation_failed`, `contract.repair_requested`, `plan.validation_failed` and `plan.repair_requested` include the role/run ID, top-level retry index and validation evidence. The initial failed response has retry index 0; requested repairs use 1, 2, etc. Invalid plans/contracts are never published as ready, so dependent participants cannot start from rejected data.
-
-### Real concurrency and isolation
-
-The plan validator requires initially independent work for **both** developers. The board dispatches their claims and QA's claim without awaiting other turns. Mozaik's fire-and-forget `runLoop` and nonblocking situation processors allow their actual inference and tool work to overlap. There is no `await devA(); await devB()` pipeline.
-
-The concurrency test uses a barrier: no worker can finish its initial inference until all three workers have entered it. A sequential implementation would time out. It also checks that the measured work intervals overlap.
-
-```text
-.work/<run-id>/<owner>/<ticket-id>/attempt-<retry>/
-output/<run-id>/
-traces/<run-id>/
-  events.jsonl
-  activity.log
-  state.json
-```
-
-Every ticket owns explicit files; overlapping ownership, traversal, symlinks and reserved filenames are rejected. QA has a separate test artifact. Workers submit SHA-256 recorded artifacts rather than overwriting a shared checkout. The integrator combines approved artifacts in deterministic path order and checks hashes before copying and after verification. Repair work is seeded with accepted artifacts and the ticket's previous candidate.
-
-### Deterministic gates and automatic recovery
-
-CI owns the generated `package.json` and `tsconfig.json`; models cannot rewrite verification scripts. Projects use Node built-ins only. CI reuses the installed factory TypeScript toolchain via an ignored `node_modules` directory link, so generated dependency installation is unnecessary during a run. A copied standalone project declares its own development dependencies; run `npm install --ignore-scripts` there before using it.
-
-CI runs, in order:
-
-1. TypeScript typecheck (`--noEmit`).
-2. TypeScript build.
-3. Node's test runner against QA's `.test.mjs` artifacts.
-
-A failed step stops that attempt. Every process records command, explicit cwd, stdout, stderr, exit code, signal, duration, timeout and spawn error. Text such as “DONE” or “tests passed” is never sufficient evidence.
-
-On implementation/test failure the Reviewer receives the actual command output, contract, ownership and candidate artifacts. It must identify blocking issues and existing owned files. The board creates `BUG-*` tickets, assigns the relevant original owner, wakes that worker, requests another review, integrates the repair and reruns CI. A source ticket's CI repair budget defaults to **2**; review rejection retries are also bounded. Unfixable candidates terminate as `FAILED`.
-
-Provider failures have a separate small retry budget and never create semantic bug tickets. Timeouts, spawn errors and signals are infrastructure failures and terminate with their evidence. Basic structured-output/schema failures and unauthorized tools are protocol failures; semantic planning violations receive the bounded self-repair described above before becoming terminal. Mozaik 4.2.0's fire-and-forget loop does not expose a public rejected-promise callback, so the bounded inference adapter converts provider rejection into a typed fault answer that follows the factory's explicit failure path.
-
-### Provider-compatible inference schemas
-
-`src/runtime/inference-schema.ts` projects full Zod schemas into model-facing generation schemas. A recursive allowlist removes `$schema`, `pattern`, string-length/property-count constraints, uniqueness/contains constraints and unneeded annotations. It visits schema nodes in `properties`, `$defs`, `items`, `prefixItems`, `anyOf`, `oneOf` and schema-valued `additionalProperties`. Literal property names, `required`, `enum` and descriptions remain unchanged. Input schemas are not mutated.
-
-The generic projection preserves useful JSON Schema structure and references. Gemini model names select a narrower legacy profile because Mozaik 4.2.0 sends structured output through `responseSchema`; JSON-Schema-only fields such as `additionalProperties` and `$ref` are omitted there. This distinction follows the [Google generation configuration reference](https://ai.google.dev/api/generate-content#v1beta.GenerationConfig). Current role schemas use objects, arrays, enums and primitives, not references or tuples; future reference/tuple schemas need a corresponding legacy conversion or a JSON-Schema-capable transport. Tools use the generic projection because Mozaik sends their parameters through `parametersJsonSchema`.
-
-This changes only provider guidance. Every returned answer still goes through the original `turn.schema.parse`, `parseContract`/`parsePlan`, and review checks; each tool invocation still runs its original Zod parser. Empty summaries, invalid IDs, excessive string lengths, unexpected keys and semantic DAG/concurrency violations are still rejected locally. Schema projection itself needs no dependency patch; the Gemini tool-loop fix below is separate.
-
-When a provider exposes a numeric HTTP status, a 400 failure is marked non-retryable. HTTP 429/5xx and failures without a known permanent status retain bounded provider retries. Only the redacted message, safe numeric status and retry decision are recorded; raw provider error objects are not logged.
-
-### Gemini tool-loop thought signatures
-
-Mozaik 4.2.0's Gemini mapper dropped `Part.thoughtSignature` when producing a `FunctionCallItem`, then reconstructed subsequent function-call history without it. The actual runtime appends the call object directly to `ModelContext`, so a small adapter/context patch fixes the missing metadata without changing orchestration.
-
-`patches/@mozaik-ai+core+4.2.0.patch` adds optional `FunctionCallItem.thoughtSignature`, copies the provider string on response mapping/rehydration and places the same string on the corresponding Gemini `functionCall` part during request replay. The patch covers CommonJS, ESM and both declaration files. There is no global signature cache, no decoding/transformation, no placeholder signature, no disabled thinking and no replacement runtime. See Google's [legacy thinking guidance](https://ai.google.dev/gemini-api/docs/generate-content/thinking) for the provider requirement.
-
-The signature travels with its own call in memory, including across sequential tools and explicit item rehydration. OpenAI and Anthropic mappers ignore this Gemini-only metadata. Normal factory traces do not serialize agent memory; additionally, the observer redacts `thoughtSignature` / `thought_signature` fields recursively in diagnostic events and state snapshots without changing the original context. Optional presence flags can be logged; opaque values must not be logged.
-
-`patch-package@8.0.1` is a pinned runtime installation dependency and `postinstall` reapplies the patch with `--error-on-fail` after every normal install. A fresh `npm ci` replaces the original dependency then applies this checked-in diff automatically. If Mozaik is upgraded, check whether upstream fixed the mapper and update/remove the patch intentionally; do not silently reuse the old-version patch. [Patch maintenance notes](patches/README.md) describe the exact scope.
-
-### Trace and metrics
-
-`events.jsonl` contains real timestamps, run ID, participant ID, role, ticket ID, action, start/end/instant phase, elapsed time, retry, model, provider token usage when supplied, estimated cost when configured, and human intervention count. Commands have bounded captured output. Raw provider responses/prompts are omitted from local event logs. Environment secrets and common API-key patterns are redacted from persisted evidence. `state.json` includes contract and project state; treat specifications and source as potentially private.
-
-Token totals and cost are `null` when unavailable or incomplete, including offline fixtures. `knownInputTokens` and `knownOutputTokens` preserve measured subsets; metered/unmetered call counters explain coverage. Optional rates are user-supplied estimates, not a pricing claim. Different model prices require choosing suitable rates or extending per-model accounting. Mozaik's optional built-in cloud integration may activate if its credentials already exist; this factory forces its payload redaction to `all`. Local traces are the authoritative evidence.
-
-Normal invocation counts as zero human interventions. `EngineeringState.recordHumanIntervention(reason, description)` is the explicit API for a host/UI to record an actual human action. Hash mismatches fail integrity checks; they do not falsely identify an unknown actor as a human. This v1 does not infer edits made and reverted between checkpoints.
-
-## Configuration
-
-| Variable | Default / purpose |
-| --- | --- |
-| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` | Key for the provider(s) of your selected Mozaik models |
-| `FACTORY_MODEL` | `gpt-5.4-mini`; shared fallback model |
-| `PM_MODEL`, `TECH_LEAD_MODEL` | Optional PM and planning overrides |
-| `IMPLEMENTATION_DEV_MODEL`, `RELIABILITY_DEV_MODEL` | Optional developer overrides |
-| `QA_MODEL`, `REVIEWER_MODEL` | Optional testing and review overrides |
-| `MAX_RETRIES_PER_TICKET` | `2`; bounded review/CI repairs |
-| `MAX_PROVIDER_RETRIES` | `1`; additional provider attempts per turn |
-| `MAX_PLANNING_RETRIES` | `2`; additional semantic repairs for each PM/Tech Lead phase (0–5) |
-| `MAX_MODEL_CALLS_PER_TURN` | `30`; bounds tool/inference loops |
-| `MODEL_TIMEOUT_MS` | `120000` per inference request |
-| `COMMAND_TIMEOUT_MS` | `30000` per child command |
-| `RUN_TIMEOUT_MS` | `900000` per factory run |
-| `INPUT_USD_PER_MILLION`, `OUTPUT_USD_PER_MILLION` | Unset; optional uniform estimated token rates |
-
-Selected live model names must exist in the pinned Mozaik registry. Custom providers/configurations can be supplied through the `runFactory({ runner })` TypeScript API. Do not put keys in specs, source files or committed `.env` files.
-
-## Verification and development
+## Review without an inference account
 
 ```sh
+npm ci
 npm run typecheck
 npm run build
 npm test
-npm run smoke
+npm run verify:evidence
+```
+
+- `npm test`: **73 deterministic runtime regression tests**, including a three-worker concurrency barrier, strict schemas, planning repair, CI/BUG recovery, tool isolation, credential redaction and repeated hosted-adapter tool calls.
+- `npm run verify:evidence`: checks archived artifact hashes and concurrency evidence, recompiles all four unchanged live-generated deliveries, reruns **72 generated QA tests** and **68 independent acceptance checks**, including both HTTP startup gates. This is an **offline replay of real outputs**, not a new inference run. Scratch projects remain in ignored `.work/` for inspection.
+
+To independently check a new built delivery:
+
+```sh
+npm run verify:output -- sum-cli output/<run-id>
+```
+
+Supported checkers are `sum-cli`, `notes-api`, `file-counts` and `tasks-api`. This task-specific oracle is outside the Factory and never supplies implementation code to its agents.
+
+Optional recovery demonstration:
+
+```sh
 npm run smoke:recovery
 ```
 
-Tests cover contract/reference validation, DAG and ownership checks, state transitions, repair limits, real process evidence, filesystem boundaries, artifact tampering, child environment/timeout behavior, bounded provider faults, concurrent worker barriers and end-to-end failure/recovery. Scripted planning tests additionally cover the live serial-plan failure, corrected plans, latest-candidate feedback, PM duplicate/reference/coverage repairs, independent role budgets, exhaustion, zero budget, schema-failure separation and redacted evidence. GitHub Actions runs the checks and both offline smokes on Ubuntu and Windows.
+The smoke commands use explicitly scripted offline inference. The recovery fixture inserts a real defect, observes a failing Node assertion, creates a BUG ticket and verifies the generated repair. They are separate from the hosted results above. [GitHub Actions](https://github.com/AllForJoon/NTP_Novi_Sad_Hackathon_Software_Factory/actions/workflows/ci.yml) runs the regression suite, archived-output replay and both smoke checks on Ubuntu and Windows without provider secrets.
 
-Inspect a successful project's `product-contract.json`, `factory-verification.json`, `src/`, `tests/`, and its matching trace directory. For the Sum CLI delivery:
+## How it works
 
-```sh
-# From output/<run-id>
-npm run build
-npm test
-node dist/index.js sum 2 3
+```mermaid
+flowchart TD
+  Spec[Markdown specification] --> PM[Product Manager]
+  PM -->|Product Contract| TL[Tech Lead]
+  TL -->|Engineering Plan| Board[Deterministic project board]
+  subgraph Workers[Concurrent Mozaik worker loops]
+    A[Developer A]
+    B[Developer B]
+    QA[Independent QA]
+  end
+  Board --> A
+  Board --> B
+  Board --> QA
+  A --> Review[Read-only Reviewer]
+  B --> Review
+  QA --> Review
+  Review -->|accepted artifacts| CI[Integrator / CI]
+  Review -->|changes requested| Board
+  CI -->|failure evidence| Review
+  CI -->|all gates pass| Output[Verified TypeScript project]
 ```
 
-Source map: `src/factory/company.ts` wires event handlers; `src/runtime/` contains situations and bounded inference; `src/participants/prompts.ts` defines role policies; `src/schemas.ts` validates contracts/plans/verdicts; `src/state.ts` holds the board; `src/tools/` enforces file and process boundaries; `src/tracing/` writes evidence; `src/testing/` contains the explicitly scripted offline fixture.
+- **Differentiated authority:** PM and Tech Lead plan; developers own disjoint source files; QA owns tests; Reviewer cannot edit or run tools; CI controls scaffold and completion.
+- **Genuine concurrency:** initially independent developer tickets and QA are dispatched without awaiting one another. Isolated workspaces and hashed artifacts prevent shared-file overwrites.
+- **Bounded autonomous repair:** invalid semantic plans return to Tech Lead; rejected artifacts return to their owner; failed CI produces Reviewer-classified BUG tickets and fresh verification. Provider/auth/quota failures remain separate from product defects.
+- **Strict local validation:** original Zod contracts and ownership/DAG rules remain authoritative. Hosted JSON-format fallback changes generation guidance, not acceptance rules.
+- **Mozaik remains the runtime:** `defineRuntime`, participants, events and `runLoop` orchestrate every role. The custom JigJoy runner only translates inference; Baro supplies authentication, not orchestration.
 
-## Limits and next steps
+## Repository map
 
-- General CLI/HTTP generation requires real model credentials. The checked local E2E path is the offline Sum CLI fixture; it is not evidence of arbitrary-spec live model quality or of the HTTP example passing.
-- Scope is small Node-only projects: no external runtime dependencies, database, authentication, frontend or deployment. Ambiguities are recorded with conservative assumptions; there is no interactive requirements negotiation.
-- Tool permissions, fixed commands, clean child environments, timeouts and artifact hashes are application boundaries, **not an OS security sandbox**. Generated JS/tests execute with the invoking user's filesystem/network privileges. Provider HTTP requests are raced against a deadline; the underlying SDK request may finish later because the Mozaik inference interface exposes no abort signal.
-- There is one worker per developer role and one queued Reviewer. The runtime supports independent tickets, not a distributed queue, crash resume or durable transaction processing.
-- Agents are instructed to emit one tool call at a time. The adapter retains the first tool call when a provider batches calls, matching Mozaik 4.2.0's loop; it preserves reasoning context. Future versions should handle complete batches explicitly.
-- Passing tests prove the supplied assertions, not exhaustive correctness. The read-only reviewer and adversarial QA reduce, but cannot eliminate, missing assertions.
+| Path | Purpose |
+| --- | --- |
+| `src/factory/`, `src/state.ts` | Mozaik event handlers, board, review and integration |
+| `src/participants/`, `src/schemas.ts` | Role policies and strict contracts |
+| `src/runtime/` | Hosted runner, provider retries, schemas and situations |
+| `src/tools/`, `src/tracing/` | Owned-file tools, fixed checks and redacted evidence |
+| `tests/` | Runtime and adapter regression tests |
+| `specs/examples/`, `specs/validation/` | Bundled and originally unseen specifications |
+| `scripts/` | Independent output verification and archived-delivery replay |
+| `docs/evidence/` | Curated live traces, hashed generated sources and verification |
+| `patches/` | Version-pinned Gemini tool-signature compatibility patch |
 
-Highest-priority improvements: run real provider-backed CLI and HTTP challenge specs; evaluate contract/test coverage on unseen tasks; add process/container isolation and cancellation; then durable resume and per-model cost accounting. No web UI is required for the first version.
+## Configuration and limits
+
+See [.env.example](.env.example) and the [configuration reference](docs/ARCHITECTURE.md#configuration). External `openai`, `anthropic`, `gemini`, and legacy `auto` modes remain available with matching models/keys. JigJoy aliases are checked by the hosted gateway rather than Mozaik's upstream registry.
+
+Scope is small TypeScript CLIs and in-memory HTTP APIs, with no runtime dependencies, database, frontend or deployment. Generated code executes with the invoking user's privileges; this is not an OS sandbox. Runs, retries and tool calls are bounded; there is no crash resume. Hosted verification covers one Chat Completions model, not every account/model entitlement. SDK-provider cancellation can finish later than its outer deadline; the JigJoy fetch runner also aborts its own requests. Passing finite tests does not prove arbitrary-spec correctness.
+
+[Documentation index](docs/README.md) · [MIT license](LICENSE)

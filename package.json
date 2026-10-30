@@ -13,6 +13,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "verify:evidence": "node --import tsx scripts/verify-evidence.mjs",
+    "verify:output": "node scripts/verify-output.mjs",
     "smoke": "tsx src/cli.ts specs/examples/sum-cli.md --demo",
     "smoke:recovery": "tsx src/cli.ts specs/examples/sum-cli.md --demo-recovery"
   },

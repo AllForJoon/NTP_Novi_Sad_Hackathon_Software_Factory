@@ -1,0 +1,60 @@
+{
+  "kind": "file-counts",
+  "id": "2026-10-30T22-20-13-790Z-6c16658c",
+  "status": "COMPLETED",
+  "independentAcceptanceChecks": 15,
+  "ciExits": [
+    0,
+    0,
+    0
+  ],
+  "generatedTests": 16,
+  "workerOverlapMs": 14122,
+  "spans": [
+    {
+      "role": "developer-a",
+      "start": "2026-10-30T22:21:21.186Z",
+      "end": "2026-10-30T22:21:35.330Z"
+    },
+    {
+      "role": "developer-b",
+      "start": "2026-10-30T22:21:21.196Z",
+      "end": "2026-10-30T22:21:37.274Z"
+    },
+    {
+      "role": "qa",
+      "start": "2026-10-30T22:21:21.208Z",
+      "end": "2026-10-30T22:23:56.949Z"
+    }
+  ],
+  "elapsedMs": 440333,
+  "reasoningEffort": "provider default",
+  "toolCalls": 23,
+  "reviewRepairs": 1,
+  "planningRepairs": 0,
+  "providerRetries": 0,
+  "metrics": {
+    "modelCalls": 29,
+    "meteredModelCalls": 29,
+    "unmeteredModelCalls": 0,
+    "knownInputTokens": 261795,
+    "knownOutputTokens": 87300,
+    "inputTokens": 261795,
+    "outputTokens": 87300,
+    "estimatedCostUsd": null,
+    "humanInterventionCount": 0
+  },
+  "provider": "jigjoy",
+  "model": "deepseek-flash",
+  "mode": "live",
+  "spec": "specs/validation/file-counts.md",
+  "specSha256": "bcf554c423fc74bf2a650eef970af4ce2e259a9c05fe3ad63f566aa6f7ebb660",
+  "projectDirectory": "file-counts/project",
+  "files": {
+    "package.json": "8e3107ad821db567274edb8af68c96bc39b07d1f2e35a8171f9458568bd1ba5a",
+    "src/index.ts": "45521caa606f04e18ea14cfcca9a362be7b84fc0cf77b09dc68298cd5fa2e249",
+    "src/stats.ts": "a6b1642e53517a609adf4886f122efc82531d3cb4785c21718f7f8482c1e0e79",
+    "tests/contract.test.mjs": "4278d5de1a4093baacf9b610941b5ac4c6ec66fc83e44794ba8feabfa0e58bf5",
+    "tsconfig.json": "e31461347d10c02168d511b00e89f663d7c004b160b75b9e450b558825f8dcd4"
+  }
+}

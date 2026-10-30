@@ -1,0 +1,60 @@
+{
+  "kind": "sum-cli",
+  "id": "2026-10-30T22-33-32-191Z-43c4378a",
+  "status": "COMPLETED",
+  "independentAcceptanceChecks": 15,
+  "ciExits": [
+    0,
+    0,
+    0
+  ],
+  "generatedTests": 25,
+  "workerOverlapMs": 8298,
+  "spans": [
+    {
+      "role": "developer-a",
+      "start": "2026-10-30T22:34:30.522Z",
+      "end": "2026-10-30T22:34:40.841Z"
+    },
+    {
+      "role": "developer-b",
+      "start": "2026-10-30T22:34:30.532Z",
+      "end": "2026-10-30T22:34:38.840Z"
+    },
+    {
+      "role": "qa",
+      "start": "2026-10-30T22:34:30.542Z",
+      "end": "2026-10-30T22:35:17.671Z"
+    }
+  ],
+  "elapsedMs": 122681,
+  "reasoningEffort": "low",
+  "toolCalls": 11,
+  "reviewRepairs": 0,
+  "planningRepairs": 0,
+  "providerRetries": 0,
+  "metrics": {
+    "modelCalls": 16,
+    "meteredModelCalls": 16,
+    "unmeteredModelCalls": 0,
+    "knownInputTokens": 67440,
+    "knownOutputTokens": 23807,
+    "inputTokens": 67440,
+    "outputTokens": 23807,
+    "estimatedCostUsd": null,
+    "humanInterventionCount": 0
+  },
+  "provider": "jigjoy",
+  "model": "deepseek-flash",
+  "mode": "live",
+  "spec": "specs/examples/sum-cli.md",
+  "specSha256": "30c67c8ff464b693f213abb3b99399b7676f596277ca955a633df65463d32fee",
+  "projectDirectory": "sum-cli/project",
+  "files": {
+    "package.json": "8e3107ad821db567274edb8af68c96bc39b07d1f2e35a8171f9458568bd1ba5a",
+    "src/index.ts": "267246543f6e03963d1939f65f0fa7235e8ec2e932b85873fb29cb2f10f4ed8a",
+    "src/numeric.ts": "70ae02c1c35f6d9a6b6a36ed3027fafa134b2a8baa18e124f48adf73b5cee947",
+    "tests/contract.test.mjs": "aa0ad2c6123d34877a50b36864f5d50320117f0a2674aaa35669ad17b395ca5f",
+    "tsconfig.json": "e31461347d10c02168d511b00e89f663d7c004b160b75b9e450b558825f8dcd4"
+  }
+}

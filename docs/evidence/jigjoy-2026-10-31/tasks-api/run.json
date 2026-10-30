@@ -1,0 +1,62 @@
+{
+  "kind": "tasks-api",
+  "id": "2026-10-30T22-23-22-359Z-9ceabbc2",
+  "status": "COMPLETED",
+  "independentAcceptanceChecks": 22,
+  "ciExits": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "generatedTests": 21,
+  "workerOverlapMs": 15253,
+  "spans": [
+    {
+      "role": "developer-a",
+      "start": "2026-10-30T22:25:43.102Z",
+      "end": "2026-10-30T22:26:03.083Z"
+    },
+    {
+      "role": "developer-b",
+      "start": "2026-10-30T22:25:43.110Z",
+      "end": "2026-10-30T22:25:58.372Z"
+    },
+    {
+      "role": "qa",
+      "start": "2026-10-30T22:25:43.119Z",
+      "end": "2026-10-30T22:27:12.790Z"
+    }
+  ],
+  "elapsedMs": 367770,
+  "reasoningEffort": "provider default",
+  "toolCalls": 18,
+  "reviewRepairs": 0,
+  "planningRepairs": 0,
+  "providerRetries": 0,
+  "metrics": {
+    "modelCalls": 23,
+    "meteredModelCalls": 23,
+    "unmeteredModelCalls": 0,
+    "knownInputTokens": 131580,
+    "knownOutputTokens": 75157,
+    "inputTokens": 131580,
+    "outputTokens": 75157,
+    "estimatedCostUsd": null,
+    "humanInterventionCount": 0
+  },
+  "provider": "jigjoy",
+  "model": "deepseek-flash",
+  "mode": "live",
+  "spec": "specs/validation/tasks-api.md",
+  "specSha256": "3188938413b7d879e08367da14d14e76867a7d7276fff2e5a0a3c1b010419bd2",
+  "projectDirectory": "tasks-api/project",
+  "files": {
+    "package.json": "8e3107ad821db567274edb8af68c96bc39b07d1f2e35a8171f9458568bd1ba5a",
+    "src/index.ts": "6c878dd005c26236c283fb184a53a8421297f66378bcb1e2fa7668760d86d492",
+    "src/store.ts": "75832c1c88d7993b6c71381eb871a6c7fe28cd3a2cd5f896dff083bb02e96937",
+    "src/support.ts": "914d1bd83c206b687776c2e34cc60bdb21a368380777d49a331da6a1c1e16d11",
+    "tests/contract.test.mjs": "477e52db9c4a21e3f3270a9d1f24ba6557cd32b45a58682574cbf39c2de9d63f",
+    "tsconfig.json": "e31461347d10c02168d511b00e89f663d7c004b160b75b9e450b558825f8dcd4"
+  }
+}

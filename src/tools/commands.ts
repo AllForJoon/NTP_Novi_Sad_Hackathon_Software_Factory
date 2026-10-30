@@ -2,12 +2,16 @@ import { spawn, spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { readdirSync, existsSync } from 'node:fs';
 import type { CommandResult, VerificationResult } from '../state.js';
+import { httpStartupCheck } from './http-startup.js';
 
+const runtimeSecrets = new Set<string>();
+export function registerSecret(secret: string): void { if (secret.length >= 6) runtimeSecrets.add(secret); }
 export function redact(text: string): string {
   let result = text;
+  for (const secret of runtimeSecrets) result = result.split(secret).join('[REDACTED]');
   for (const [key, value] of Object.entries(process.env))
     if (value && value.length >= 6 && /KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL/i.test(key)) result = result.split(value).join('[REDACTED]');
-  return result.replace(/\bsk-[A-Za-z0-9_-]{12,}\b/g, '[REDACTED]');
+  return result.replace(/\b(?:sk-[A-Za-z0-9_-]{12,}|gk_v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|cli_[A-Za-z0-9._~-]{8,})/g, '[REDACTED]');
 }
 export function runNode(cwd: string, args: string[], timeoutMs: number): Promise<CommandResult> {
   const started = Date.now();
@@ -31,19 +35,21 @@ export function runNode(cwd: string, args: string[], timeoutMs: number): Promise
     });
   });
 }
-export function summarizeVerification(commands: CommandResult[], attempt: number): VerificationResult {
-  const passed = commands.length === 3 && commands.every(c => c.exitCode === 0 && !c.signal && !c.timedOut && !c.error);
+export function summarizeVerification(commands: CommandResult[], attempt: number, expectedCommands = 3): VerificationResult {
+  const passed = commands.length === expectedCommands && commands.every(c => c.exitCode === 0 && !c.signal && !c.timedOut && !c.error);
   return { attempt, passed, category: passed ? 'passed' : commands.some(c => c.error || c.signal || c.timedOut || c.exitCode === null) ? 'infrastructure' : 'implementation', commands, timestamp: new Date().toISOString() };
 }
-export async function verifyProject(root: string, toolchain: string, timeoutMs: number, attempt: number, record: (result: CommandResult) => void): Promise<VerificationResult> {
+export async function verifyProject(root: string, toolchain: string, timeoutMs: number, attempt: number, record: (result: CommandResult) => void, httpEntrypoint = false): Promise<VerificationResult> {
   const commands: CommandResult[] = [];
   const tsc = resolve(toolchain, 'node_modules/typescript/bin/tsc');
   const tests = existsSync(resolve(root, 'tests')) ? readdirSync(resolve(root, 'tests')).filter(f => f.endsWith('.test.mjs')).sort() : [];
   if (!tests.length) throw new Error('Verification requires QA test artifacts');
-  for (const args of [[tsc, '-p', 'tsconfig.json', '--noEmit'], [tsc, '-p', 'tsconfig.json'], ['--test', ...tests.map(f => `tests/${f}`)]]) {
+  const checks = [[tsc, '-p', 'tsconfig.json', '--noEmit'], [tsc, '-p', 'tsconfig.json'], ['--test', ...tests.map(f => `tests/${f}`)]];
+  if (httpEntrypoint) checks.push(['--input-type=module', '-e', httpStartupCheck]);
+  for (const args of checks) {
     const result = await runNode(root, args, timeoutMs);
     commands.push(result); record(result);
     if (result.exitCode !== 0 || result.signal || result.error || result.timedOut) break;
   }
-  return summarizeVerification(commands, attempt);
+  return summarizeVerification(commands, attempt, httpEntrypoint ? 4 : 3);
 }

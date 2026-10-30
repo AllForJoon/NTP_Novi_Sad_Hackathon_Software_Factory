@@ -1,0 +1,32 @@
+[
+  {
+    "ticketId": "CLI-001",
+    "verdict": "approved",
+    "blockingIssues": []
+  },
+  {
+    "ticketId": "STATS-001",
+    "verdict": "approved",
+    "blockingIssues": []
+  },
+  {
+    "ticketId": "QA-001",
+    "verdict": "changes_requested",
+    "blockingIssues": [
+      {
+        "reason": "AC15's no-network and no-file-write requirements are not actually verified: the test only compares the working-directory entry list and its import guard accepts all Node builtins, including networking modules.",
+        "evidence": "In tests/contract.test.mjs, the AC15 test captures `const before = fs.readdirSync(workDir).sort();` and after the CLI run only asserts `fs.readdirSync(workDir).sort()` is unchanged; it never re-reads or hashes `workFile`, so a CLI that rewrites the input file would still pass. The import check is `assert.ok(spec.startsWith('.') || isBuiltinSpecifier(spec), ...)`, and `isBuiltinSpecifier` returns true for any `node:` specifier, so `node:http`, `node:https`, `node:net`, `node:tls`, `node:dns`, `node:dgram`, and `node:http2` are accepted.",
+        "recommendedAction": "Strengthen AC15: snapshot the input file's content/stat before and after the run and assert it is unchanged, and explicitly reject networking builtins (http, https, net, tls, dns, dgram, http2) in the compiled import scan. Also consider rejecting global `fetch(` usage. Optionally run the documented TypeScript build before asserting dist/index.js.",
+        "likelyOwner": "qa",
+        "files": [
+          "tests/contract.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "ticketId": "QA-001",
+    "verdict": "approved",
+    "blockingIssues": []
+  }
+]

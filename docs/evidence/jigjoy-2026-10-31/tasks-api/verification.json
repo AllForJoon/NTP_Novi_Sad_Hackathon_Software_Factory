@@ -1,0 +1,42 @@
+[
+  {
+    "attempt": 1,
+    "passed": true,
+    "category": "passed",
+    "timestamp": "2026-10-30T22:29:30.123Z",
+    "commands": [
+      {
+        "check": "typecheck",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 711,
+        "timedOut": false,
+        "error": null
+      },
+      {
+        "check": "build",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 728,
+        "timedOut": false,
+        "error": null
+      },
+      {
+        "check": "test",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 5282,
+        "timedOut": false,
+        "error": null
+      },
+      {
+        "check": "http-startup",
+        "exitCode": 0,
+        "signal": null,
+        "elapsedMs": 247,
+        "timedOut": false,
+        "error": null
+      }
+    ]
+  }
+]

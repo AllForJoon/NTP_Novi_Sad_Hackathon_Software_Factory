@@ -1,3 +1,5 @@
+> Historical development record. Current submission results and setup are in the [JigJoy hosted validation](JIGJOY_HOSTED.md) and [submission guide](SUBMISSION.md). Earlier test counts and Gemini quota blockers below do not describe the current submission.
+
 # Initial implementation and validation record
 
 Validated locally on 2026-10-30, Windows, Node v22.14.0, npm 10.9.2.
@@ -251,3 +253,7 @@ npm run factory -- ./specs/examples/sum-cli.md
 ```
 
 Role-specific model overrides still take precedence. No real provider-backed run is claimed for this implementation turn; local tests exercise the patched mapper, real Mozaik loops and real deterministic CI.
+
+## Autonomous live engineering follow-up
+
+The codex_5th loop and subsequent credential-enabled continuation are recorded in [CODEX_5TH_VALIDATION.md](CODEX_5TH_VALIDATION.md). Real Gemini/Mozaik runs reached COMPLETED for Sum CLI, Notes HTTP API and two new CLI specifications; 54 independent acceptance cases and artifact integrity checks passed. Final Factory typecheck/build and 66 tests passed. The fresh final-source Sum repeat was subsequently blocked by exhausted daily provider quota and unavailable alternatives; the report distinguishes those attempts from the earlier successful runs and records the exact external action needed for further generation.

@@ -1,0 +1,45 @@
+{
+  "architecture": "Single-command ESM CLI. Entry `src/index.ts` validates argv, accesses files through an injected CliIo, calls pure `computeStats` from `./stats.js`, and writes exactly one compact JSON line on success. `src/stats.ts` owns all text counting. CI supplies package.json/tsconfig/compiler; runtime uses only node:fs/promises and node:url. NodeNext requires `.js` suffixes in relative imports. Success exit 0 with stdout `{\"lines\":N,\"words\":N,\"characters\":N}\\n`; invalid command/arity returns 2 with stderr only; path/read errors return 1 with stderr only. Direct execution sets process.exitCode from runCli; guard uses pathToFileURL(process.argv[1]).href === import.meta.url. No network, writes, or third-party deps.",
+  "interfaces": "Public module interfaces. `src/stats.ts`: `export interface Stats { lines: number; words: number; characters: number }`; `export function computeStats(text: string): Stats` is total, deterministic, I/O-free, never throws for any string, does not mutate input. `characters` is Unicode code-point count; `words` is count of maximal non-whitespace runs; `lines` is 0 for empty input, else LF count plus 1 when text does not end with LF. `src/index.ts`: `export interface CliIo { writeStdout(text: string): void; writeStderr(text: string): void; isFile(path: string): Promise<boolean>; readFileUtf8(path: string): Promise<string> }`; `export async function runCli(args: readonly string[], io: CliIo): Promise<number>`; `args` excludes node/script. `runCli` requires args.length===2 and args[0]==='stats'; otherwise writes one nonempty stderr line, no stdout, returns 2. If `io.isFile(path)` is false or `readFileUtf8` rejects, writes one nonempty stderr line, no stdout, returns 1. On success writes exactly `JSON.stringify({lines,words,characters}) + '\\n'` to stdout in key order lines,words,characters, no other stdout, returns 0. `runCli` never throws for these expected cases. Direct-execution wrapper uses node:fs/promises stat for isFile and readFile with utf8 for readFileUtf8; guard compares import.meta.url with pathToFileURL(process.argv[1]).href. Import `computeStats` in index via `./stats.js`; import runCli from `dist/index.js` in tests. Paths with spaces are passed as one argv string. No BOM stripping; decoded BOM counts as a code point.",
+  "tickets": [
+    {
+      "id": "CLI-001",
+      "title": "Implement stats CLI entry and reliability boundary",
+      "description": "Create src/index.ts. Implement the exact CliIo/runCli interface from the published contract, default Node IO with node:fs/promises, and the pathToFileURL direct-execution guard. Validate exactly `stats` plus one path, reject command/arity errors with stderr-only exit 2, reject non-file/read errors with stderr-only exit 1, and on success emit compact JSON + newline with key order lines,words,characters and exit 0. Import computeStats from './stats.js'; do not implement counting. Accept paths containing spaces. No network or file writes. Coordinate only through published interfaces.",
+      "owner": "developer-a",
+      "dependencies": [],
+      "ownedFiles": [
+        "src/index.ts"
+      ],
+      "acceptanceCriteria": [
+        "AC1",
+        "AC2",
+        "AC6",
+        "AC10",
+        "AC11",
+        "AC12",
+        "AC13",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "id": "STATS-001",
+      "title": "Implement pure Unicode text statistics",
+      "description": "Create src/stats.ts. Implement the exact Stats and computeStats interface. Pure total function: code-point characters, maximal non-whitespace word runs, LF-separated lines with empty input zero, final LF no extra line, CRLF separated by LF while CR and LF count as characters, blank lines count. No imports, I/O, side effects, or third-party deps. Must be usable by src/index.ts without reading its implementation.",
+      "owner": "developer-b",
+      "dependencies": [],
+      "ownedFiles": [
+        "src/stats.ts"
+      ],
+      "acceptanceCriteria": [
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC7",
+        "AC8",
+        "AC9"
+      ]
+    }
+  ]
+}

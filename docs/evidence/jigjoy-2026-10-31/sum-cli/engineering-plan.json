@@ -1,0 +1,41 @@
+{
+  "architecture": "Minimal TypeScript CLI with two concrete source files and no runtime dependencies. `src/index.ts` is the owned entry point: it reads `process.argv.slice(2)`, requires command `sum`, requires exactly two operands, delegates operand validation/formatting to the published `src/numeric.ts` interface via `import { parseOperand, formatSum } from './numeric.js'`, prints success as normalized numeric text plus `\\n` to stdout, and writes helpful errors to stderr with non-zero exit. `src/numeric.ts` owns trimming and finite-decimal validation so both developers can start concurrently against the published interface. Direct execution sets `process.exitCode = main(process.argv.slice(2))`; any direct-execution guard must use `pathToFileURL` from `node:url`. Only Node built-ins are permitted; the numeric helper needs no imports. Normalization is end-to-end: operands are trimmed before validation, `1.0` normalizes to `1`, `\" 1.0 \"` normalizes to `1`, and output is `String(sum)` followed by a newline. Empty or whitespace-only operands are rejected after trimming.",
+  "interfaces": "src/numeric.ts (developer-b, published reliability helper):\nexport type ParseOperandResult = { readonly ok: true; readonly value: number; readonly normalized: string } | { readonly ok: false; readonly error: string };\nexport function parseOperand(raw: string): ParseOperandResult;\nexport function formatSum(value: number): string;\nContract: `parseOperand` first trims `raw`; if the trimmed value is empty it returns `{ ok: false, error: 'operand must not be empty' }`; it accepts only trimmed strings matching `/^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)$/`; it converts with `Number`, requires `Number.isFinite`, and returns `{ ok: true, value, normalized: String(value) }`. Thus `\" 1.0 \"` is accepted and normalized to `\"1\"`; `\"\"`, `\"   \"`, `\"abc\"`, `\"NaN\"`, and `\"Infinity\"` are rejected. `formatSum(value)` returns `String(value)` and is used for the exact stdout numeric form.\n\nsrc/index.ts (developer-a, entry point):\nexport function main(argv: readonly string[]): number;\nImport path: `import { parseOperand, formatSum } from './numeric.js';`\nObservable CLI contract: `main(['sum','1','2'])` writes exactly `3\\n` to stdout and returns `0`; `main(['sum','-2.5','0.5'])` writes exactly `-2\\n` and returns `0`; `main(['sum','1.0','1'])` writes exactly `2\\n` and returns `0`. If argv has no command, an unknown command, or not exactly two operands after `sum`, write `Error: usage: sum <a> <b>\\n` to stderr, write nothing to stdout, and return `1`. If either operand fails `parseOperand`, write `Error: operands must be finite decimal numbers; usage: sum <a> <b>\\n` to stderr, write nothing to stdout, and return `1`. On success write `${formatSum(a + b)}\\n` to stdout only. When executed as `src/index.ts`, set `process.exitCode = main(process.argv.slice(2))`.",
+  "tickets": [
+    {
+      "id": "T-001",
+      "title": "CLI entry, command dispatch, stdout/stderr and exit behavior",
+      "description": "Developer-a owns the CLI entry point only. Implement `src/index.ts` against the published `./numeric.js` interface. Enforce command `sum`, exactly two operands, trim/normalize via `parseOperand`, print successful normalized sum plus newline to stdout, return 0 on success, and return 1 with helpful stderr and no stdout for missing/unknown command, wrong operand count, or invalid operands. Use only Node built-ins and import the helper from the exact published path.",
+      "owner": "developer-a",
+      "dependencies": [],
+      "ownedFiles": [
+        "src/index.ts"
+      ],
+      "acceptanceCriteria": [
+        "AC1",
+        "AC2",
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC6",
+        "AC7"
+      ]
+    },
+    {
+      "id": "T-002",
+      "title": "Numeric operand validation and normalized formatting helper",
+      "description": "Developer-b owns the published numeric helper only. Implement `src/numeric.ts` with the exact `ParseOperandResult`, `parseOperand`, and `formatSum` signatures. `parseOperand` must trim first, reject empty/whitespace-only/non-numeric/NaN/Infinity values, accept finite decimal syntax, and return both numeric value and normalized `String(value)`. `formatSum` must return exact normalized numeric text. This ticket can start independently because its interface is published in the plan and developer-a codes against it without needing this file first.",
+      "owner": "developer-b",
+      "dependencies": [],
+      "ownedFiles": [
+        "src/numeric.ts"
+      ],
+      "acceptanceCriteria": [
+        "AC2",
+        "AC3",
+        "AC5",
+        "AC7"
+      ]
+    }
+  ]
+}
