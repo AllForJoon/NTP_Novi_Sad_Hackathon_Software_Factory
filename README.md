@@ -53,19 +53,39 @@ The regression suite tests concurrency, planning recovery, CI failure â†’ BUG â†
 
 ## 4. Quick Start
 
-Requires **Node.js 22+** and npm. The supplied `.env.example` selects JigJoy hosted `deepseek-flash`; install the official Baro CLI and sign in with an account that has hosted inference access:
+Requires **Node.js 22+**, npm, and your own API key for the provider you choose. No provider account or model is preselected in `.env.example`.
 
 ```sh
 npm ci
 cp .env.example .env
-npm install -g baro-ai@0.121.0
-baro login
+npm run models
+```
+
+Edit `.env`: choose `FACTORY_PROVIDER` from the table, set `FACTORY_MODEL` to a model ID shown by `npm run models`, and fill in **only the matching API key** with your own credential.
+
+| `FACTORY_PROVIDER` | API key to set in `.env` |
+| --- | --- |
+| `openai` | `OPENAI_API_KEY` |
+| `anthropic` | `ANTHROPIC_API_KEY` |
+| `gemini` | `GEMINI_API_KEY` |
+
+```dotenv
+FACTORY_PROVIDER=<provider-from-table>
+FACTORY_MODEL=<model-id-you-selected>
+# Fill the matching API key field in .env; leave unrelated key fields empty.
+```
+
+The list comes from the pinned Mozaik runtime; your provider account must have access to the chosen model and sufficient quota. All roles use `FACTORY_MODEL` unless you set a role override in `.env`. Missing models/keys, unsupported model IDs and mismatched providers fail before agent execution. Then run:
+
+```sh
 npm run build
 npm test
 npm run factory -- ./specs/examples/sum-cli.md
 ```
 
-PowerShell can use `Copy-Item .env.example .env`. Copy the configuration only on first setup. JigJoy mode needs no OpenAI, Anthropic or Gemini API key; it uses Baro's official credential helper. Account credit/limits apply. Existing Mozaik Cloud pairing continues exporting redacted telemetry and is separate from inference authentication. Optional external providers and execution limits are configured in [.env.example](.env.example).
+PowerShell can use `Copy-Item .env.example .env`. Copy the configuration only on first setup and keep `.env` local. Reasoning effort, token limits and role-specific models are optional; configure them for the model you selected rather than copying another model's settings. `FACTORY_PROVIDER=auto` can infer API providers from selected model IDs.
+
+Optional hosted alternative: choose `FACTORY_PROVIDER=jigjoy` and an account-authorized hosted model, install `baro-ai@0.121.0`, and run `baro login`. That mode uses the official login helper instead of upstream API keys; hosted aliases are not part of `npm run models`. Existing Mozaik Cloud pairing remains separate from inference authentication.
 
 `npm ci` automatically applies the required pinned compatibility [patch](patches/README.md). Generated code runs with the invoking user's privileges; use an appropriate environment for untrusted specifications.
 

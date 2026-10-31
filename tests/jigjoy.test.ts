@@ -124,7 +124,7 @@ test('Official helper stdout is captured privately and invalid/failed helper res
 });
 
 test('JigJoy configuration requires no external provider key; explicit provider modes enforce model ownership', () => {
-  const config = loadConfig({ FACTORY_PROVIDER: 'jigjoy' }); validateModels(config, {});
+  const config = loadConfig({ FACTORY_PROVIDER: 'jigjoy', FACTORY_MODEL: 'deepseek-flash' }); validateModels(config, {});
   assert.equal(config.models.pm, 'deepseek-flash');
   assert.equal(config.maxOutputTokens, 32768); assert.equal(config.modelTimeoutMs, 240000);
   assert.equal(loadConfig({ FACTORY_REASONING_EFFORT: 'low' }).reasoningEffort, 'low');

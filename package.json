@@ -10,6 +10,7 @@
   "scripts": {
     "postinstall": "patch-package --error-on-fail",
     "factory": "tsx src/cli.ts",
+    "models": "tsx src/cli.ts --list-models",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test tests/*.test.ts",

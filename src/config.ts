@@ -12,8 +12,24 @@ const modelEnv: Record<Role, string> = {
   pm: 'PM_MODEL', 'tech-lead': 'TECH_LEAD_MODEL', 'developer-a': 'IMPLEMENTATION_DEV_MODEL',
   'developer-b': 'RELIABILITY_DEV_MODEL', qa: 'QA_MODEL', reviewer: 'REVIEWER_MODEL',
 };
+const apiKeys = { openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY', gemini: 'GEMINI_API_KEY' } as const;
+type ApiProvider = keyof typeof apiKeys;
+function apiProvider(provider: string): ApiProvider | undefined {
+  const name = provider.toLowerCase();
+  return name === 'google' || name === 'gemini' ? 'gemini' : name === 'openai' || name === 'anthropic' ? name : undefined;
+}
+
+// Only advertise providers whose default Mozaik endpoint is wired here.
+// Hosted JigJoy aliases belong to the account/gateway rather than this registry.
+export function availableModels(): { provider: ApiProvider; model: string; apiKeyEnv: string }[] {
+  return supportedModels.flatMap(model => {
+    const provider = apiProvider(model.specification.provider);
+    return provider ? [{ provider, model: model.specification.name, apiKeyEnv: apiKeys[provider] }] : [];
+  });
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): FactoryConfig {
-  const provider = env.FACTORY_PROVIDER || 'auto';
+  const provider = env.FACTORY_PROVIDER?.trim().toLowerCase() || 'auto';
   if (!['auto', 'jigjoy', 'openai', 'anthropic', 'gemini'].includes(provider)) throw new Error('FACTORY_PROVIDER must be auto, jigjoy, openai, anthropic or gemini');
   const effort = env.FACTORY_REASONING_EFFORT || undefined;
   if (effort && !['low', 'medium', 'high', 'max'].includes(effort)) throw new Error('FACTORY_REASONING_EFFORT must be low, medium, high or max');
@@ -31,7 +47,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FactoryConfig 
   return {
     provider: provider as FactoryConfig['provider'],
     ...(effort ? { reasoningEffort: effort as FactoryConfig['reasoningEffort'] } : {}),
-    models: Object.fromEntries(Object.entries(modelEnv).map(([role, key]) => [role, env[key] || env.FACTORY_MODEL || (provider === 'jigjoy' ? 'deepseek-flash' : provider === 'gemini' ? 'gemini-3.5-flash-lite' : provider === 'anthropic' ? 'claude-sonnet-4-6' : 'gpt-5.4-mini')])) as Record<Role, string>,
+    models: Object.fromEntries(Object.entries(modelEnv).map(([role, key]) => [role, env[key]?.trim() || env.FACTORY_MODEL?.trim() || ''])) as Record<Role, string>,
     maxRetries: integer('MAX_RETRIES_PER_TICKET', 2, 0, 5),
     maxProviderRetries: integer('MAX_PROVIDER_RETRIES', 1, 0, 3),
     maxPlanningRetries: integer('MAX_PLANNING_RETRIES', 2, 0, 5),
@@ -44,16 +60,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FactoryConfig 
   };
 }
 export function validateModels(config: FactoryConfig, env: NodeJS.ProcessEnv = process.env): void {
+  const missing = Object.entries(config.models).filter(([, model]) => !model.trim()).map(([role]) => role);
+  if (missing.length) throw new Error(`Choose FACTORY_MODEL in .env (or set every role's model override). Missing models for: ${missing.join(', ')}. Run npm run models to see supported API model IDs.`);
   if (config.provider === 'jigjoy') {
     for (const model of Object.values(config.models)) if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(model)) throw new Error('Invalid hosted model identifier');
     return; // Hosted aliases belong to the gateway, not the upstream registry.
   }
   for (const name of new Set(Object.values(config.models))) {
     const model = supportedModels.find(m => m.specification.name === name);
-    if (!model) throw new Error(`Model ${name} is not in Mozaik 4.2.0's registry. Choose a supported model or inject an InferenceRunner.`);
-    const provider = model.specification.provider.toLowerCase();
-    if (config.provider !== 'auto' && !provider.includes(config.provider) && !(config.provider === 'gemini' && provider.includes('google'))) throw new Error(`Model ${name} does not belong to FACTORY_PROVIDER=${config.provider}`);
-    const key = provider.includes('anthropic') ? 'ANTHROPIC_API_KEY' : provider.includes('gemini') || provider.includes('google') ? 'GEMINI_API_KEY' : 'OPENAI_API_KEY';
-    if (!env[key]) throw new Error(`${key} is required for ${name}. Copy .env.example to .env. Use --demo for the offline Sum CLI fixture.`);
+    if (!model) throw new Error('Configured model is not in Mozaik 4.2.0\'s registry. Run npm run models and choose a supported API model ID, or select jigjoy for an account-authorized hosted model.');
+    const provider = apiProvider(model.specification.provider);
+    if (!provider) throw new Error('This model has no direct API provider configured in the Factory. Run npm run models for supported API choices.');
+    if (config.provider !== 'auto' && provider !== config.provider) throw new Error(`Model ${name} does not belong to FACTORY_PROVIDER=${config.provider}`);
+    const key = apiKeys[provider];
+    if (!env[key]?.trim()) throw new Error(`${key} is required for ${name}. Set your own ${provider} API key in .env.`);
   }
 }

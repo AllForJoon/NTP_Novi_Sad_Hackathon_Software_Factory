@@ -5,12 +5,17 @@ import { parseArgs } from 'node:util';
 import { runFactory } from './factory/company.js';
 import { DemoRunner } from './testing/demo-runner.js';
 import { redact } from './tools/commands.js';
+import { availableModels } from './config.js';
 
 loadEnv({ quiet: true });
 try {
-  const { values, positionals } = parseArgs({ options: { demo: { type: 'boolean' }, 'demo-recovery': { type: 'boolean' }, help: { type: 'boolean', short: 'h' } }, allowPositionals: true });
+  const { values, positionals } = parseArgs({ options: { demo: { type: 'boolean' }, 'demo-recovery': { type: 'boolean' }, 'list-models': { type: 'boolean' }, help: { type: 'boolean', short: 'h' } }, allowPositionals: true });
   if (values.help) {
-    console.log('Usage: npm run factory -- <spec.md> [--demo | --demo-recovery]\nLive mode uses configured Mozaik models. Offline flags support only specs/examples/sum-cli.md.');
+    console.log('Usage: npm run factory -- <spec.md> [--demo | --demo-recovery]\n       npm run models\nLive mode requires a selected FACTORY_MODEL and its provider API key (or optional JigJoy login). Offline flags support only specs/examples/sum-cli.md.');
+  } else if (values['list-models']) {
+    if (positionals.length || values.demo || values['demo-recovery']) throw new Error('Use --list-models alone, without a spec or demo flag.');
+    console.log(['Provider\tModel ID\tAPI key variable', ...availableModels().map(model => `${model.provider}\t${model.model}\t${model.apiKeyEnv}`)].join('\n'));
+    console.log('\nThese are model IDs supported by the pinned Mozaik runtime; your provider account must grant access. JigJoy hosted model aliases are account-specific and are not listed here.');
   } else {
     if (positionals.length !== 1 || (values.demo && values['demo-recovery'])) throw new Error('Provide one specification path and at most one demo flag. Use --help for usage.');
     const root = process.cwd(), spec = readFileSync(resolve(root, positionals[0]!), 'utf8');
